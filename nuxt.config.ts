@@ -2,7 +2,7 @@
 export default defineNuxtConfig({
   devtools: { enabled: true },
 
-  modules: [],
+  modules: ['nuxt-vercel-analytics'],
 
   css: ['~/assets/css/main.css'],
 
