@@ -17,18 +17,34 @@ const emit = defineEmits<{
 const isOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 
+const search = ref('')
+const searchInput = ref<HTMLInputElement | null>(null)
+
 const selectedLabel = computed(() => {
   const option = props.options.find(o => o.value === props.modelValue)
   return option?.label || props.placeholder || 'Select...'
 })
 
+const searchable = computed(() => props.options.length > 8)
+
+const filteredOptions = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return props.options
+  return props.options.filter(o => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q))
+})
+
 function toggle() {
   isOpen.value = !isOpen.value
+  if (isOpen.value) {
+    search.value = ''
+    nextTick(() => searchInput.value?.focus())
+  }
 }
 
 function select(value: string) {
   emit('update:modelValue', value)
   isOpen.value = false
+  search.value = ''
 }
 
 // Close on click outside
@@ -60,8 +76,17 @@ onUnmounted(() => {
     
     <Transition name="dropdown">
       <div v-if="isOpen" class="select-dropdown">
+        <div v-if="searchable" class="select-search">
+          <input
+            ref="searchInput"
+            v-model="search"
+            type="search"
+            placeholder="Search…"
+            @click.stop
+          />
+        </div>
         <button
-          v-for="option in options"
+          v-for="option in filteredOptions"
           :key="option.value"
           type="button"
           class="select-option"
@@ -70,6 +95,7 @@ onUnmounted(() => {
         >
           {{ option.label }}
         </button>
+        <p v-if="!filteredOptions.length" class="select-empty">No matches</p>
       </div>
     </Transition>
   </div>
@@ -129,13 +155,38 @@ onUnmounted(() => {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
+  min-width: 220px;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   z-index: 100;
-  max-height: 240px;
+  max-height: 320px;
   overflow-y: auto;
+}
+
+.select-search {
+  position: sticky;
+  top: 0;
+  padding: 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  z-index: 1;
+}
+
+.select-search input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.select-empty {
+  margin: 0;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .select-option {

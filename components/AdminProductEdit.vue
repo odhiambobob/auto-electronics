@@ -33,23 +33,7 @@ const form = reactive({
   currency: 'KES',
 })
 
-// Country to currency mapping
-const countryData: Record<string, { currency: string; symbol: string }> = {
-  'Kenya': { currency: 'KES', symbol: 'KSh' },
-  'Uganda': { currency: 'UGX', symbol: 'USh' },
-  'Tanzania': { currency: 'TZS', symbol: 'TSh' },
-  'Rwanda': { currency: 'RWF', symbol: 'FRw' },
-  'Ethiopia': { currency: 'ETB', symbol: 'Br' },
-  'Nigeria': { currency: 'NGN', symbol: '₦' },
-  'Ghana': { currency: 'GHS', symbol: 'GH₵' },
-  'South Africa': { currency: 'ZAR', symbol: 'R' },
-  'Egypt': { currency: 'EGP', symbol: 'E£' },
-  'Morocco': { currency: 'MAD', symbol: 'DH' },
-  'Global': { currency: 'USD', symbol: '$' },
-}
-
-const countries = Object.keys(countryData)
-const countryOptions = countries.map(c => ({ value: c, label: c }))
+const { countryData, countryOptions } = useCountries()
 
 // Track if we should auto-update currency (only when user manually changes country)
 const manualCountryChange = ref(false)
@@ -378,7 +362,7 @@ async function deleteProduct() {
               v-model="form.country" 
               :options="countryOptions"
             />
-            <p class="hint">Which country/region is this product available in?</p>
+            <p class="hint">Search and select any African country. Currency updates automatically.</p>
           </div>
 
           <div class="form-group">

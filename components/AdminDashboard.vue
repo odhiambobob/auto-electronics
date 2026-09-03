@@ -15,6 +15,7 @@ const { data: earnings, error: earningsError, refresh: refreshEarnings } = await
 })
 const { data: products, error: productsError } = await useFetch('/api/admin/products')
 const { getErrorMessage } = useApiError()
+const { getCountryFlag, getCountryCurrency } = useCountries()
 
 const dashboardError = computed(() => ordersError.value || analyticsError.value || earningsError.value || productsError.value)
 
@@ -57,15 +58,9 @@ const productsByCountry = computed(() => {
   if (!products.value) return []
   const countMap = new Map<string, { total: number; active: number; currency: string }>()
   
-  const currencyMap: Record<string, string> = {
-    'Kenya': 'KES', 'Uganda': 'UGX', 'Tanzania': 'TZS', 'Rwanda': 'RWF',
-    'Ethiopia': 'ETB', 'Nigeria': 'NGN', 'Ghana': 'GHS', 'South Africa': 'ZAR',
-    'Egypt': 'EGP', 'Morocco': 'MAD', 'Global': 'USD',
-  }
-  
   for (const p of products.value as any[]) {
     const country = p.country || 'Kenya'
-    const current = countMap.get(country) || { total: 0, active: 0, currency: currencyMap[country] || 'USD' }
+    const current = countMap.get(country) || { total: 0, active: 0, currency: getCountryCurrency(country) }
     current.total++
     if (p.isActive) current.active++
     countMap.set(country, current)
@@ -120,25 +115,6 @@ const periodOptions = [
   { value: '30', label: 'Last 30 days' },
   { value: '90', label: 'Last 90 days' },
 ]
-
-// Country flags
-const countryFlags: Record<string, string> = {
-  'Kenya': '🇰🇪',
-  'Uganda': '🇺🇬',
-  'Tanzania': '🇹🇿',
-  'Rwanda': '🇷🇼',
-  'Ethiopia': '🇪🇹',
-  'Nigeria': '🇳🇬',
-  'Ghana': '🇬🇭',
-  'South Africa': '🇿🇦',
-  'Egypt': '🇪🇬',
-  'Morocco': '🇲🇦',
-  'Global': '🌍',
-}
-
-function getCountryFlag(country: string): string {
-  return countryFlags[country] || '🏳️'
-}
 </script>
 
 <template>
