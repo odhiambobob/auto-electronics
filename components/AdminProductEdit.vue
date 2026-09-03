@@ -3,7 +3,8 @@ const props = defineProps<{ productId: string }>()
 const router = useRouter()
 const adminPath = useState<string>('adminPath')
 
-const { data: product, refresh } = await useFetch(`/api/products/${props.productId}`)
+// Use admin endpoint to fetch product (includes inactive products)
+const { data: product, refresh } = await useFetch(`/api/admin/products/${props.productId}`)
 
 const saving = ref(false)
 const error = ref('')
