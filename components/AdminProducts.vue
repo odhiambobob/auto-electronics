@@ -95,6 +95,7 @@ async function duplicateProduct(product: any) {
         isActive: false, // Start as inactive
         featured: false,
         currency: product.currency,
+        metaPixel: product.metaPixel || undefined,
       },
     })
     

@@ -31,6 +31,7 @@ const form = reactive({
   isActive: true,
   featured: false,
   currency: 'KES',
+  metaPixel: '',
 })
 
 const { countryData, countryOptions } = useCountries()
@@ -62,6 +63,7 @@ watch(product, (p) => {
     form.isActive = p.isActive
     form.featured = p.featured
     form.currency = p.currency
+    form.metaPixel = p.metaPixel || ''
   }
 }, { immediate: true })
 
@@ -192,7 +194,10 @@ async function updateProduct() {
   try {
     await $fetch(`/api/products/${props.productId}`, {
       method: 'PUT',
-      body: form,
+      body: {
+        ...form,
+        metaPixel: form.metaPixel.trim() || null,
+      },
     })
     await refresh()
     success.value = 'Product updated successfully!'
@@ -245,6 +250,7 @@ async function duplicateProduct() {
         isActive: false, // Start as inactive
         featured: false,
         currency: form.currency,
+        metaPixel: form.metaPixel.trim() || undefined,
       },
     })
     
@@ -507,6 +513,12 @@ async function deleteProduct() {
             <input v-model="form.featured" type="checkbox" />
             Featured (shown on homepage)
           </label>
+
+          <div class="form-group pixel-field">
+            <label>Meta Pixel ID (optional)</label>
+            <input v-model="form.metaPixel" type="text" inputmode="numeric" placeholder="1080694787636988" />
+            <p class="hint">Leave blank to use the site default pixel. Unique per product if you run separate ad campaigns.</p>
+          </div>
         </div>
       </div>
 
@@ -782,6 +794,10 @@ async function deleteProduct() {
 
 .checkbox-label input {
   width: auto;
+}
+
+.pixel-field {
+  margin-top: 16px;
 }
 
 .error {

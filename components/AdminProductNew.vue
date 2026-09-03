@@ -25,6 +25,7 @@ const form = reactive({
   isActive: true,
   featured: false,
   currency: 'KES',
+  metaPixel: '',
 })
 
 const { countryData, countryOptions } = useCountries()
@@ -172,7 +173,10 @@ async function createProduct() {
   try {
     const product = await $fetch('/api/products', {
       method: 'POST',
-      body: form,
+      body: {
+        ...form,
+        metaPixel: form.metaPixel.trim() || undefined,
+      },
     })
     createdProduct.value = product
     showPreview.value = true
@@ -413,6 +417,12 @@ function viewOnStore() {
             <input v-model="form.featured" type="checkbox" />
             Featured (shown on homepage)
           </label>
+
+          <div class="form-group pixel-field">
+            <label>Meta Pixel ID (optional)</label>
+            <input v-model="form.metaPixel" type="text" inputmode="numeric" placeholder="1080694787636988" />
+            <p class="hint">Leave blank to use the site default pixel. Unique per product if you run separate ad campaigns.</p>
+          </div>
         </div>
       </div>
 
@@ -632,6 +642,10 @@ function viewOnStore() {
 
 .checkbox-label input {
   width: auto;
+}
+
+.pixel-field {
+  margin-top: 16px;
 }
 
 .error {
