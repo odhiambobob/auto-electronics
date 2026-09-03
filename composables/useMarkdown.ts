@@ -1,10 +1,25 @@
-import { marked } from 'marked'
-import DOMPurify from 'isomorphic-dompurify'
+import { Marked } from 'marked'
 import type { DescriptionBlock } from '~/types/store'
 
-export function useMarkdown() {
-  marked.setOptions({ gfm: true, breaks: false })
+const markedSafe = new Marked({
+  gfm: true,
+  breaks: false,
+  renderer: {
+    html() {
+      return ''
+    },
+  },
+})
 
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript:/gi, '')
+}
+
+export function useMarkdown() {
   function stripMarkdown(markdown: string): string {
     return (markdown || '')
       .replace(/```[\s\S]*?```/g, ' ')
@@ -19,8 +34,8 @@ export function useMarkdown() {
 
   function renderMarkdown(markdown: string): string {
     try {
-      const html = marked.parse(markdown || '', { async: false }) as string
-      return DOMPurify.sanitize(html)
+      const html = markedSafe.parse(markdown || '', { async: false })
+      return sanitizeHtml(typeof html === 'string' ? html : '')
     } catch (error) {
       console.error('Markdown render failed:', error)
       return ''
@@ -88,33 +103,39 @@ export function useMarkdown() {
     seed: string,
     productName: string,
   ): DescriptionBlock[] {
-    const blocks = splitBlocks(markdown)
-    const safeImages = Array.isArray(images) ? images.filter(Boolean) : []
-    const rand = seedRandom(`${seed}-gaps`)
-    const pool = shuffle(safeImages, seed || 'product')
-    const result: DescriptionBlock[] = []
+    try {
+      const blocks = splitBlocks(markdown)
+      const safeImages = Array.isArray(images) ? images.filter(Boolean) : []
+      const rand = seedRandom(`${seed}-gaps`)
+      const pool = shuffle(safeImages, seed || 'product')
+      const result: DescriptionBlock[] = []
 
-    blocks.forEach((block, index) => {
-      result.push({ type: 'md', html: renderMarkdown(block) })
-      const remainingSlots = blocks.length - 1 - index
-      const shouldInsert =
-        pool.length > 0 &&
-        index < blocks.length - 1 &&
-        (pool.length >= remainingSlots || rand() > 0.4)
+      blocks.forEach((block, index) => {
+        result.push({ type: 'md', html: renderMarkdown(block) })
+        const remainingSlots = blocks.length - 1 - index
+        const shouldInsert =
+          pool.length > 0 &&
+          index < blocks.length - 1 &&
+          (pool.length >= remainingSlots || rand() > 0.4)
 
-      if (shouldInsert) {
-        const src = pool.shift()
-        if (src) {
-          result.push({
-            type: 'img',
-            src,
-            alt: `${productName} detail`,
-          })
+        if (shouldInsert) {
+          const src = pool.shift()
+          if (src) {
+            const imageBlock: DescriptionBlock = {
+              type: 'img',
+              src,
+              alt: `${productName} detail`,
+            }
+            result.push(imageBlock)
+          }
         }
-      }
-    })
+      })
 
-    return result
+      return result
+    } catch (error) {
+      console.error('Description render failed:', error)
+      return []
+    }
   }
 
   return {

@@ -21,6 +21,10 @@ const { data: product, error: productError, refresh: refreshProduct } = await us
       ? `/api/admin/products/${id}`
       : `/api/products/${id}`
   },
+  {
+    key: `product-${isPreview.value ? 'preview' : 'public'}-${productId.value}`,
+    default: () => null,
+  },
 )
 
 const { packPrice, packLabel, savingsPercent } = useCatalog()
@@ -103,13 +107,13 @@ onMounted(() => {
 
 // SEO
 if (product.value) {
-  const description = product.value.shortDescription || stripMarkdown(product.value.description).slice(0, 160)
+  const description = product.value.shortDescription || stripMarkdown(product.value.description || '').slice(0, 160)
   useSeoMeta({
     title: product.value.productName,
     description,
     ogTitle: product.value.productName,
     ogDescription: description,
-    ogImage: product.value.images[0],
+    ogImage: product.value.images?.[0],
     ogType: 'product',
   })
 }

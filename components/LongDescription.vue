@@ -8,9 +8,13 @@ const props = defineProps<{
 
 const { interleaveDescription } = useMarkdown()
 
-const blocks = computed(() =>
-  interleaveDescription(props.markdown, props.images, props.seed, props.productName),
-)
+const blocks = computed(() => {
+  try {
+    return interleaveDescription(props.markdown || '', props.images || [], props.seed, props.productName)
+  } catch {
+    return []
+  }
+})
 </script>
 
 <template>

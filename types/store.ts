@@ -110,7 +110,7 @@ export interface CreateOrderInput {
   keverdError?: string
 }
 
-export interface DescriptionBlock {
+export type DescriptionBlock = {
   type: 'md'
   html: string
 } | {
