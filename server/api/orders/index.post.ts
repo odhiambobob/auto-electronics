@@ -11,6 +11,10 @@ const createOrderSchema = z.object({
   package: z.string().min(1),
   quantity: z.number().int().positive(),
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  keverdEventId: z.string().max(255).optional(),
+  keverdVisitorId: z.string().max(255).optional(),
+  keverdErrorStage: z.string().max(50).optional(),
+  keverdError: z.string().max(500).optional(),
 })
 
 export default defineSafeEventHandler(async (event) => {
@@ -52,6 +56,11 @@ export default defineSafeEventHandler(async (event) => {
   const totalPrice = unitPrice * parsed.data.quantity
   const orderId = generateOrderId()
 
+  const check = await verifyOrderEvent(parsed.data.keverdEventId, {
+    stage: parsed.data.keverdErrorStage,
+    message: parsed.data.keverdError,
+  })
+
   // Create the order
   const [order] = await db
     .insert(schema.orders)
@@ -71,6 +80,13 @@ export default defineSafeEventHandler(async (event) => {
       currency: product.currency,
       deliveryDate: parsed.data.deliveryDate,
       status: 'pending',
+      keverdEventId: check.eventId || parsed.data.keverdEventId || null,
+      keverdVisitorId: check.visitorId || parsed.data.keverdVisitorId || null,
+      keverdAction: check.action || null,
+      keverdRiskScore: check.riskScore ?? null,
+      keverdTimesSeen: check.timesSeen ?? null,
+      keverdErrorStage: check.errorStage,
+      keverdError: check.error,
     })
     .returning()
 

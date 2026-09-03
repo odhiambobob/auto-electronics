@@ -194,6 +194,12 @@ function goToProducts() {
 function viewOnStore() {
   window.open(`/product/${createdProduct.value.productId}`, '_blank')
 }
+
+const previewSrc = computed(() => {
+  const id = createdProduct.value?.productId
+  if (!id) return ''
+  return `/product/${encodeURIComponent(id)}?preview=1`
+})
 </script>
 
 <template>
@@ -212,21 +218,21 @@ function viewOnStore() {
           <div class="device desktop">
             <div class="device-label">Desktop</div>
             <div class="device-frame">
-              <iframe :src="`/product/${createdProduct?.productId}`" />
+              <iframe v-if="previewSrc" :src="previewSrc" title="Desktop preview" />
             </div>
           </div>
           
           <div class="device tablet">
             <div class="device-label">Tablet</div>
             <div class="device-frame">
-              <iframe :src="`/product/${createdProduct?.productId}`" />
+              <iframe v-if="previewSrc" :src="previewSrc" title="Tablet preview" />
             </div>
           </div>
           
           <div class="device mobile">
             <div class="device-label">Mobile</div>
             <div class="device-frame">
-              <iframe :src="`/product/${createdProduct?.productId}`" />
+              <iframe v-if="previewSrc" :src="previewSrc" title="Mobile preview" />
             </div>
           </div>
         </div>

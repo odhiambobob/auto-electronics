@@ -284,6 +284,11 @@ async function deleteProduct() {
     deleting.value = false
   }
 }
+
+const previewSrc = computed(() => {
+  if (!props.productId) return ''
+  return `/product/${encodeURIComponent(props.productId)}?preview=1`
+})
 </script>
 
 <template>
@@ -302,21 +307,21 @@ async function deleteProduct() {
           <div class="device desktop">
             <div class="device-label">Desktop</div>
             <div class="device-frame">
-              <iframe :src="`/product/${props.productId}?preview=1&t=${Date.now()}`" />
+              <iframe v-if="previewSrc" :src="previewSrc" title="Desktop preview" />
             </div>
           </div>
           
           <div class="device tablet">
             <div class="device-label">Tablet</div>
             <div class="device-frame">
-              <iframe :src="`/product/${props.productId}?preview=1&t=${Date.now()}`" />
+              <iframe v-if="previewSrc" :src="previewSrc" title="Tablet preview" />
             </div>
           </div>
           
           <div class="device mobile">
             <div class="device-label">Mobile</div>
             <div class="device-frame">
-              <iframe :src="`/product/${props.productId}?preview=1&t=${Date.now()}`" />
+              <iframe v-if="previewSrc" :src="previewSrc" title="Mobile preview" />
             </div>
           </div>
         </div>

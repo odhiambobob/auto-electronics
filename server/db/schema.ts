@@ -48,6 +48,13 @@ export const orders = pgTable('orders', {
   deliveryDate: date('delivery_date').notNull(),
   status: orderStatusEnum('status').notNull().default('pending'),
   notes: text('notes'),
+  keverdEventId: varchar('keverd_event_id', { length: 255 }),
+  keverdVisitorId: varchar('keverd_visitor_id', { length: 255 }),
+  keverdAction: varchar('keverd_action', { length: 50 }),
+  keverdRiskScore: integer('keverd_risk_score'),
+  keverdTimesSeen: integer('keverd_times_seen'),
+  keverdErrorStage: varchar('keverd_error_stage', { length: 50 }),
+  keverdError: text('keverd_error'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

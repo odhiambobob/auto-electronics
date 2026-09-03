@@ -12,13 +12,21 @@ const productId = computed(() => {
   return raw ? decodeURIComponent(raw) : ''
 })
 
+const isPreview = computed(() => route.query.preview === '1')
+
 const { data: product, error: productError, refresh: refreshProduct } = await useFetch<Product>(
-  () => `/api/products/${encodeURIComponent(productId.value)}`,
+  () => {
+    const id = encodeURIComponent(productId.value)
+    return isPreview.value
+      ? `/api/admin/products/${id}`
+      : `/api/products/${id}`
+  },
 )
 
 const { packPrice, packLabel, savingsPercent } = useCatalog()
 const { formatMoney, formatCount, defaultDeliveryIso, tomorrowIso } = useFormat()
 const { track, initPixel, trackViewContent, trackPurchase } = useTracking()
+const { getCheckoutEvent } = useKeverd()
 const { stripMarkdown } = useMarkdown()
 const { getErrorMessage } = useApiError()
 
@@ -70,7 +78,7 @@ const packageName = computed(() => {
 
 // Track product view
 onMounted(() => {
-  if (product.value) {
+  if (product.value && !isPreview.value) {
     track('product_view', { productId: product.value.productId })
     initPixel(product.value.metaPixel || undefined)
     trackViewContent({
@@ -136,6 +144,8 @@ async function placeOrder() {
   submitting.value = true
   
   try {
+    const keverd = isPreview.value ? null : await getCheckoutEvent()
+
     const orderInput: CreateOrderInput = {
       customerName: form.customerName.trim(),
       primaryPhone: form.primaryPhone.trim(),
@@ -146,6 +156,10 @@ async function placeOrder() {
       package: packageName.value,
       quantity: isUnitPricing.value ? quantity.value : 1, // For packs, quantity is always 1
       deliveryDate: form.deliveryDate,
+      keverdEventId: keverd?.eventId,
+      keverdVisitorId: keverd?.visitorId,
+      keverdErrorStage: keverd?.errorStage,
+      keverdError: keverd?.error,
     }
 
     const order = await $fetch('/api/orders', {
@@ -207,7 +221,8 @@ function trackFieldFilled(field: string) {
     <NuxtLink to="/products">Back to the catalogue</NuxtLink>
   </div>
 
-  <div v-else class="page">
+  <div v-else class="page" :class="{ preview: isPreview }">
+    <p v-if="isPreview" class="preview-banner">Preview mode — this is how the product appears to customers.</p>
     <nav class="crumbs">
       <NuxtLink to="/">Home</NuxtLink>
       <span>/</span>
@@ -343,7 +358,7 @@ function trackFieldFilled(field: string) {
       :product-name="product.productName"
     />
 
-    <div v-if="!formVisible" class="sticky">
+    <div v-if="!formVisible && !isPreview" class="sticky">
       <span>{{ money(total) }}</span>
       <button class="btn primary" type="button" @click="goToForm">Place order</button>
     </div>
@@ -357,6 +372,20 @@ function trackFieldFilled(field: string) {
   padding: 28px 0 96px;
   display: grid;
   gap: 64px;
+}
+
+.preview-banner {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--chip);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.page.preview {
+  padding-bottom: 28px;
 }
 
 .missing {

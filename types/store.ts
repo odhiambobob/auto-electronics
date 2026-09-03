@@ -44,6 +44,13 @@ export interface Order {
   status: OrderStatus
   deliveryDate: string
   notes: string | null
+  keverdEventId: string | null
+  keverdVisitorId: string | null
+  keverdAction: string | null
+  keverdRiskScore: number | null
+  keverdTimesSeen: number | null
+  keverdErrorStage: string | null
+  keverdError: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -97,6 +104,10 @@ export interface CreateOrderInput {
   package: string
   quantity: number
   deliveryDate: string
+  keverdEventId?: string
+  keverdVisitorId?: string
+  keverdErrorStage?: string
+  keverdError?: string
 }
 
 export interface DescriptionBlock {

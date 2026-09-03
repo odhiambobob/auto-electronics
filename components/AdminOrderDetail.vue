@@ -18,6 +18,16 @@ watch(order, (o) => {
   }
 }, { immediate: true })
 
+const deviceLabel = computed(() => order.value ? keverdDeviceLabel(order.value) : null)
+const risky = computed(() => order.value ? isKeverdRisky(order.value.keverdAction, order.value.keverdRiskScore) : false)
+const relatedOrders = computed(() => order.value?.relatedOrders || [])
+const timesSeen = computed(() => {
+  if (!order.value) return null
+  if (order.value.keverdTimesSeen != null) return order.value.keverdTimesSeen
+  if (order.value.keverdVisitorId) return relatedOrders.value.length + 1
+  return null
+})
+
 const statuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
 
 async function updateOrder() {
@@ -96,6 +106,46 @@ async function updateOrder() {
           <dt>Requested Delivery</dt>
           <dd>{{ order.deliveryDate }}</dd>
         </dl>
+      </div>
+
+      <div class="card full-width">
+        <h2>Device</h2>
+        <div v-if="order.keverdError" class="keverd-error">
+          <span class="status-badge error">error</span>
+          <dl class="details">
+            <dt>Where</dt>
+            <dd>{{ keverdErrorWhere(order.keverdErrorStage) }}</dd>
+            <dt>Why</dt>
+            <dd>{{ order.keverdError }}</dd>
+          </dl>
+        </div>
+        <dl v-if="order.keverdEventId || order.keverdVisitorId || order.keverdAction" class="details">
+          <dt>Buyer</dt>
+          <dd>
+            <span v-if="deviceLabel" :class="['status-badge', deviceLabel]">{{ deviceLabel }}</span>
+            <span v-else class="muted">Unknown</span>
+            <span v-if="risky" class="status-badge risky">risky</span>
+            <span v-else-if="order.keverdAction || order.keverdRiskScore != null" class="status-badge clear">clear</span>
+          </dd>
+          <dt>Risk score</dt>
+          <dd>{{ order.keverdRiskScore ?? '—' }}</dd>
+          <dt>Times seen</dt>
+          <dd>{{ timesSeen ?? '—' }}</dd>
+          <dt>Visitor ID</dt>
+          <dd class="mono">{{ order.keverdVisitorId || '—' }}</dd>
+        </dl>
+        <p v-else-if="!order.keverdError" class="muted">No device fingerprint was recorded for this order.</p>
+
+        <div v-if="relatedOrders.length" class="related">
+          <h3>Other orders from this device</h3>
+          <ul>
+            <li v-for="related in relatedOrders" :key="related.orderId">
+              <NuxtLink :to="`/a/${adminPath}/orders/${related.orderId}`">{{ related.orderId }}</NuxtLink>
+              <span>{{ related.customerName }} · {{ related.productName }} · {{ formatMoney(related.totalPrice, related.currency) }}</span>
+              <span :class="['status-badge', related.status]">{{ related.status }}</span>
+            </li>
+          </ul>
+        </div>
       </div>
 
       <div class="card full-width">
@@ -195,6 +245,61 @@ async function updateOrder() {
   font-size: 20px;
   font-weight: 700;
   color: var(--ink);
+}
+
+.details .mono,
+.muted {
+  font-size: 13px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.details .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 400;
+}
+
+.details dd .status-badge + .status-badge {
+  margin-left: 8px;
+}
+
+.keverd-error {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  border-radius: 10px;
+}
+
+.keverd-error .details {
+  margin-top: 10px;
+}
+
+.related {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.related h3 {
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.related ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.related li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  font-size: 14px;
 }
 
 .form-row {

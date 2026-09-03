@@ -14,6 +14,8 @@ export default defineNuxtConfig({
     sessionSecret: process.env.NUXT_SESSION_SECRET || 'change-me-in-production',
     resendApiKey: process.env.RESEND_API_KEY || '',
     blobToken: process.env.BLOB_READ_WRITE_TOKEN || '',
+    // Accepts KEVERD_SECRET_KEY (docs) or NUXT_KEVERD_SECRET_KEY (Nuxt convention)
+    keverdSecretKey: process.env.NUXT_KEVERD_SECRET_KEY || process.env.KEVERD_SECRET_KEY || '',
     
     // Public keys (exposed to client)
     public: {
@@ -22,10 +24,17 @@ export default defineNuxtConfig({
       whatsappNumber: process.env.NUXT_PUBLIC_WHATSAPP_NUMBER || '',
       gaMeasurementId: process.env.NUXT_PUBLIC_GA_MEASUREMENT_ID || '',
       defaultPixel: process.env.NUXT_PUBLIC_DEFAULT_PIXEL || '',
+      keverdPublicKey: process.env.NUXT_PUBLIC_KEVERD_PUBLIC_KEY || '',
     },
   },
 
   routeRules: {
+    '/**': {
+      headers: {
+        'X-Frame-Options': 'SAMEORIGIN',
+        'Content-Security-Policy': "frame-ancestors 'self'",
+      },
+    },
     '/': { ssr: true },
     '/products': { ssr: true },
     '/product/**': { ssr: true },
@@ -33,6 +42,12 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'vercel',
+  },
+
+  vite: {
+    optimizeDeps: {
+      include: ['@keverdjs/agent'],
+    },
   },
 
   app: {

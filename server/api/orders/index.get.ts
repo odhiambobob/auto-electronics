@@ -1,4 +1,4 @@
-import { desc, eq, and, gte, lte, sql } from 'drizzle-orm'
+import { desc, eq, and, gte, lte, sql, inArray } from 'drizzle-orm'
 
 export default defineSafeEventHandler(async (event) => {
   // Require admin authentication
@@ -49,8 +49,29 @@ export default defineSafeEventHandler(async (event) => {
     .from(schema.orders)
     .where(conditions.length ? and(...conditions) : undefined)
 
+  const visitorIds = [...new Set(orderList.map((order) => order.keverdVisitorId).filter((id): id is string => Boolean(id)))]
+  const repeatCounts = new Map<string, number>()
+
+  if (visitorIds.length) {
+    const rows = await db
+      .select({
+        visitorId: schema.orders.keverdVisitorId,
+        count: sql<number>`count(*)`,
+      })
+      .from(schema.orders)
+      .where(inArray(schema.orders.keverdVisitorId, visitorIds))
+      .groupBy(schema.orders.keverdVisitorId)
+
+    for (const row of rows) {
+      if (row.visitorId) repeatCounts.set(row.visitorId, Number(row.count))
+    }
+  }
+
   return {
-    orders: orderList,
+    orders: orderList.map((order) => ({
+      ...order,
+      keverdOrderCount: order.keverdVisitorId ? repeatCounts.get(order.keverdVisitorId) ?? 1 : 0,
+    })),
     pagination: {
       page,
       limit,

@@ -40,7 +40,7 @@ async function exportCsv() {
       query: { ...queryParams.value, limit: 10000 },
     })
     
-    const headers = ['Order ID', 'Customer', 'Phone', 'City', 'Product', 'Package', 'Qty', 'Total', 'Status', 'Order Date', 'Delivery Date']
+    const headers = ['Order ID', 'Customer', 'Phone', 'City', 'Product', 'Package', 'Qty', 'Total', 'Status', 'Device', 'Risk', 'Order Date', 'Delivery Date']
     const rows = allOrders.orders.map((o: any) => [
       o.orderId,
       o.customerName,
@@ -51,6 +51,8 @@ async function exportCsv() {
       o.quantity,
       o.totalPrice,
       o.status,
+      keverdDeviceLabel(o) || '',
+      o.keverdError ? `${keverdErrorWhere(o.keverdErrorStage)}: ${o.keverdError}` : (isKeverdRisky(o.keverdAction, o.keverdRiskScore) ? 'risky' : (o.keverdAction || o.keverdRiskScore != null ? 'clear' : '')),
       new Date(o.orderDate).toISOString().split('T')[0],
       o.deliveryDate,
     ])
@@ -111,6 +113,7 @@ async function exportCsv() {
             <th>Product</th>
             <th>Total</th>
             <th>Status</th>
+            <th>Device</th>
             <th>Date</th>
           </tr>
         </thead>
@@ -128,6 +131,25 @@ async function exportCsv() {
             <td>{{ formatMoney(order.totalPrice, order.currency) }}</td>
             <td>
               <span :class="['status-badge', order.status]">{{ order.status }}</span>
+            </td>
+            <td class="device-cell">
+              <span
+                v-if="keverdDeviceLabel(order)"
+                :class="['status-badge', keverdDeviceLabel(order)]"
+              >
+                {{ keverdDeviceLabel(order) }}
+                <template v-if="(order.keverdOrderCount || 0) > 1"> · {{ order.keverdOrderCount }}</template>
+              </span>
+              <span
+                v-if="isKeverdRisky(order.keverdAction, order.keverdRiskScore)"
+                class="status-badge risky"
+              >risky</span>
+              <span
+                v-if="order.keverdError"
+                class="status-badge error"
+                :title="`${keverdErrorWhere(order.keverdErrorStage)}: ${order.keverdError}`"
+              >error</span>
+              <span v-if="!keverdDeviceLabel(order) && !isKeverdRisky(order.keverdAction, order.keverdRiskScore) && !order.keverdError" class="muted">—</span>
             </td>
             <td>{{ formatDate(order.orderDate) }}</td>
           </tr>
@@ -178,6 +200,17 @@ async function exportCsv() {
   color: var(--muted);
   text-align: center;
   padding: 32px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.device-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
 
 .pagination {

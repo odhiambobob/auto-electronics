@@ -355,6 +355,39 @@ a:focus-visible {
   color: #991b1b;
 }
 
+.status-badge.allow {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.block {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-badge.soft_challenge,
+.status-badge.hard_challenge {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.risky,
+.status-badge.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-badge.clear,
+.status-badge.new {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.repeat {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
 .form-group {
   margin-bottom: 16px;
 }
