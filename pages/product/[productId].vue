@@ -6,7 +6,15 @@ const router = useRouter()
 const config = useRuntimeConfig()
 const packs: PackSize[] = [1, 2, 3]
 
-const { data: product, error: productError, refresh: refreshProduct } = await useFetch<Product>(`/api/products/${route.params.productId}`)
+const productId = computed(() => {
+  const param = route.params.productId
+  const raw = Array.isArray(param) ? param[0] : param
+  return raw ? decodeURIComponent(raw) : ''
+})
+
+const { data: product, error: productError, refresh: refreshProduct } = await useFetch<Product>(
+  () => `/api/products/${encodeURIComponent(productId.value)}`,
+)
 
 const { packPrice, packLabel, savingsPercent } = useCatalog()
 const { formatMoney, formatCount, defaultDeliveryIso, tomorrowIso } = useFormat()
@@ -210,7 +218,7 @@ function trackFieldFilled(field: string) {
 
     <div class="split">
       <div class="gallery-col">
-        <ProductGallery :images="product.images" :name="product.productName" />
+        <ProductGallery :images="product.images || []" :name="product.productName" />
       </div>
 
       <div class="buy">
@@ -219,7 +227,7 @@ function trackFieldFilled(field: string) {
         <p class="sold">{{ formatCount(product.soldCount) }} people have bought this</p>
         <p class="blurb">{{ product.shortDescription }}</p>
 
-        <ul class="features">
+        <ul v-if="product.features?.length" class="features">
           <li v-for="feature in product.features" :key="feature">{{ feature }}</li>
         </ul>
 
@@ -328,8 +336,9 @@ function trackFieldFilled(field: string) {
     </div>
 
     <LongDescription
+      v-if="product.description"
       :markdown="product.description"
-      :images="product.images"
+      :images="product.images || []"
       :seed="product.productId"
       :product-name="product.productName"
     />

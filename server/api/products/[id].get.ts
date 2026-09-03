@@ -1,7 +1,7 @@
 import { eq, and } from 'drizzle-orm'
 
 export default defineSafeEventHandler(async (event) => {
-  const productId = getRouterParam(event, 'id')
+  const productId = decodeURIComponent(getRouterParam(event, 'id') || '')
   
   if (!productId) {
     throw createError({
@@ -29,5 +29,11 @@ export default defineSafeEventHandler(async (event) => {
     })
   }
 
-  return product
+  return {
+    ...product,
+    images: Array.isArray(product.images) ? product.images : [],
+    features: Array.isArray(product.features) ? product.features : [],
+    description: product.description || '',
+    shortDescription: product.shortDescription || '',
+  }
 })

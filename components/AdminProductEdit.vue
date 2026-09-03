@@ -4,7 +4,9 @@ const router = useRouter()
 const adminPath = useState<string>('adminPath')
 
 // Use admin endpoint to fetch product (includes inactive products)
-const { data: product, error: productError, refresh } = await useFetch(`/api/admin/products/${props.productId}`)
+const { data: product, error: productError, refresh } = await useFetch(
+  () => `/api/admin/products/${encodeURIComponent(props.productId)}`,
+)
 
 const saving = ref(false)
 const error = ref('')

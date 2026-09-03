@@ -26,10 +26,9 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    // Prerender public pages
-    '/': { prerender: true },
-    '/products': { prerender: true },
-    '/product/**': { prerender: true },
+    '/': { ssr: true },
+    '/products': { ssr: true },
+    '/product/**': { ssr: true },
   },
 
   nitro: {

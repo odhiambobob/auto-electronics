@@ -6,7 +6,7 @@ export function useMarkdown() {
   marked.setOptions({ gfm: true, breaks: false })
 
   function stripMarkdown(markdown: string): string {
-    return markdown
+    return (markdown || '')
       .replace(/```[\s\S]*?```/g, ' ')
       .replace(/`[^`]*`/g, ' ')
       .replace(/^#+\s+/gm, '')
@@ -18,13 +18,20 @@ export function useMarkdown() {
   }
 
   function renderMarkdown(markdown: string): string {
-    const html = marked.parse(markdown, { async: false }) as string
-    return DOMPurify.sanitize(html)
+    try {
+      const html = marked.parse(markdown || '', { async: false }) as string
+      return DOMPurify.sanitize(html)
+    } catch (error) {
+      console.error('Markdown render failed:', error)
+      return ''
+    }
   }
 
   function splitBlocks(markdown: string): string[] {
-    const byHeading = markdown
-      .trim()
+    const source = (markdown || '').trim()
+    if (!source) return []
+
+    const byHeading = source
       .split(/(?=^## )/m)
       .map((block) => block.trim())
       .filter(Boolean)
@@ -34,7 +41,7 @@ export function useMarkdown() {
     const parts: string[] = []
     let buffer: string[] = []
 
-    for (const line of markdown.split('\n')) {
+    for (const line of source.split('\n')) {
       if (line.trim() === '' && buffer.length) {
         parts.push(buffer.join('\n'))
         buffer = []
@@ -82,8 +89,9 @@ export function useMarkdown() {
     productName: string,
   ): DescriptionBlock[] {
     const blocks = splitBlocks(markdown)
+    const safeImages = Array.isArray(images) ? images.filter(Boolean) : []
     const rand = seedRandom(`${seed}-gaps`)
-    const pool = shuffle(images, seed)
+    const pool = shuffle(safeImages, seed || 'product')
     const result: DescriptionBlock[] = []
 
     blocks.forEach((block, index) => {
