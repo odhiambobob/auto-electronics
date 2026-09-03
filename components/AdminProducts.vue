@@ -7,7 +7,9 @@ const adminPath = useState<string>('adminPath')
 const { data: products, refresh } = await useFetch('/api/admin/products')
 
 const duplicating = ref<string | null>(null)
+const deleting = ref<string | null>(null)
 const filterCountry = ref('')
+const showDeleteConfirm = ref<string | null>(null)
 
 // Get unique countries for filtering
 const countries = computed(() => {
@@ -84,13 +86,39 @@ async function duplicateProduct(product: any) {
       },
     })
     
-    // Redirect to edit the new product
+    // Refresh and redirect to edit the new product
+    await refresh()
     await router.push(`/a/${adminPath.value}/products/${newProductId}`)
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to duplicate product:', err)
-    alert('Failed to duplicate product')
+    alert(err?.data?.message || 'Failed to duplicate product. The product ID may already exist.')
   } finally {
     duplicating.value = null
+  }
+}
+
+function confirmDelete(productId: string) {
+  showDeleteConfirm.value = productId
+}
+
+function cancelDelete() {
+  showDeleteConfirm.value = null
+}
+
+async function deleteProduct(productId: string) {
+  deleting.value = productId
+  
+  try {
+    await $fetch(`/api/products/${productId}`, {
+      method: 'DELETE',
+    })
+    showDeleteConfirm.value = null
+    await refresh()
+  } catch (err: any) {
+    console.error('Failed to delete product:', err)
+    alert(err?.data?.message || 'Failed to delete product')
+  } finally {
+    deleting.value = null
   }
 }
 </script>
@@ -171,6 +199,12 @@ async function duplicateProduct(product: any) {
               >
                 {{ duplicating === product.productId ? 'Copying...' : 'Duplicate' }}
               </button>
+              <button 
+                class="action-link delete" 
+                @click="confirmDelete(product.productId)"
+              >
+                Delete
+              </button>
             </td>
           </tr>
         </tbody>
@@ -178,6 +212,27 @@ async function duplicateProduct(product: any) {
 
       <p v-else class="empty">{{ filterCountry ? 'No products found for this country.' : 'No products yet. Add your first product!' }}</p>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <Teleport to="body">
+      <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="cancelDelete">
+        <div class="modal">
+          <h3>Delete Product</h3>
+          <p>Are you sure you want to delete <strong>{{ showDeleteConfirm }}</strong>?</p>
+          <p class="warning">This action cannot be undone.</p>
+          <div class="modal-actions">
+            <button class="btn secondary" @click="cancelDelete">Cancel</button>
+            <button 
+              class="btn danger" 
+              :disabled="deleting === showDeleteConfirm"
+              @click="deleteProduct(showDeleteConfirm)"
+            >
+              {{ deleting === showDeleteConfirm ? 'Deleting...' : 'Delete' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -281,7 +336,77 @@ async function duplicateProduct(product: any) {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s;
+}
+
+.action-link:hover {
+  background: var(--chip);
+}
+
+.action-link.delete {
+  color: #dc2626;
+}
+
+.action-link.delete:hover {
+  background: #fee2e2;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--bg);
+  padding: 24px;
+  border-radius: 16px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.modal p {
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.modal .warning {
+  color: #dc2626;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn.secondary {
+  background: var(--chip);
+  color: var(--ink);
+}
+
+.btn.danger {
+  background: #dc2626;
+  color: white;
+}
+
+.btn.danger:hover {
+  background: #b91c1c;
 }
 
 .action-link:hover {

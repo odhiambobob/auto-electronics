@@ -11,6 +11,8 @@ const success = ref('')
 const uploading = ref(false)
 const showPreview = ref(false)
 const duplicating = ref(false)
+const deleting = ref(false)
+const showDeleteConfirm = ref(false)
 
 const form = reactive({
   productName: '',
@@ -263,11 +265,30 @@ async function duplicateProduct() {
     
     // Redirect to edit the new product
     await router.push(`/a/${adminPath.value}/products/${newProductId}`)
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to duplicate product:', err)
-    error.value = 'Failed to duplicate product'
+    error.value = err?.data?.message || 'Failed to duplicate product. The product ID may already exist.'
   } finally {
     duplicating.value = false
+  }
+}
+
+async function deleteProduct() {
+  deleting.value = true
+  error.value = ''
+  
+  try {
+    await $fetch(`/api/products/${props.productId}`, {
+      method: 'DELETE',
+    })
+    // Redirect to products list
+    await router.push(`/a/${adminPath.value}/products`)
+  } catch (err: any) {
+    console.error('Failed to delete product:', err)
+    error.value = err?.data?.message || 'Failed to delete product'
+    showDeleteConfirm.value = false
+  } finally {
+    deleting.value = false
   }
 }
 </script>
@@ -325,6 +346,7 @@ async function duplicateProduct() {
           {{ duplicating ? 'Duplicating...' : 'Duplicate' }}
         </button>
         <button class="btn ghost" @click="showPreview = true">Preview</button>
+        <button class="btn danger-outline" @click="showDeleteConfirm = true">Delete</button>
       </div>
     </div>
 
@@ -513,6 +535,27 @@ async function duplicateProduct() {
         </button>
       </div>
     </form>
+
+    <!-- Delete Confirmation Modal -->
+    <Teleport to="body">
+      <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false">
+        <div class="modal">
+          <h3>Delete Product</h3>
+          <p>Are you sure you want to delete <strong>{{ product.productName }}</strong>?</p>
+          <p class="warning">This action cannot be undone. All product data will be permanently removed.</p>
+          <div class="modal-actions">
+            <button class="btn secondary" @click="showDeleteConfirm = false">Cancel</button>
+            <button 
+              class="btn danger" 
+              :disabled="deleting"
+              @click="deleteProduct"
+            >
+              {{ deleting ? 'Deleting...' : 'Delete Product' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -877,5 +920,72 @@ async function duplicateProduct() {
   .images-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Danger button outline */
+.btn.danger-outline {
+  background: transparent;
+  color: #dc2626;
+  border: 1px solid #dc2626;
+}
+
+.btn.danger-outline:hover {
+  background: #fee2e2;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--bg);
+  padding: 24px;
+  border-radius: 16px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.modal p {
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.modal .warning {
+  color: #dc2626;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn.secondary {
+  background: var(--chip);
+  color: var(--ink);
+}
+
+.btn.danger {
+  background: #dc2626;
+  color: white;
+}
+
+.btn.danger:hover {
+  background: #b91c1c;
 }
 </style>
