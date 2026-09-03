@@ -23,10 +23,12 @@ export default defineNuxtPlugin(() => {
 
   if (!skipReason()) {
     import('@keverdjs/agent')
-      .then(({ Keverd }) => {
+      .then(async ({ Keverd }) => {
         if (!Keverd.isReady()) {
           Keverd.init(publicKey)
         }
+        // Page-load collect is what creates a Keverd event. init() alone does not.
+        await Keverd.getVisitorData()
       })
       .catch(() => {})
   }
