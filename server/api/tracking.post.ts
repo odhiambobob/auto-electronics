@@ -7,7 +7,7 @@ const trackingSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 })
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   const body = await readBody(event)
   const parsed = trackingSchema.safeParse(body)
   

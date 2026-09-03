@@ -6,10 +6,10 @@ const updateProductSchema = z.object({
   shortDescription: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
   images: z.array(z.string()).optional(),
-  pack1Price: z.number().positive().optional(),
-  pack2Price: z.number().positive().optional(),
-  pack3Price: z.number().positive().optional(),
-  unitPrice: z.number().positive().optional(),
+  pack1Price: z.number().nonnegative().optional(),
+  pack2Price: z.number().nonnegative().optional(),
+  pack3Price: z.number().nonnegative().optional(),
+  unitPrice: z.number().nonnegative().optional(),
   category: z.string().min(1).optional(),
   country: z.string().optional(),
   features: z.array(z.string()).optional(),
@@ -19,7 +19,7 @@ const updateProductSchema = z.object({
   currency: z.string().optional(),
 })
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   // Require admin authentication
   await requireAdmin(event)
   
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Invalid product data',
+      statusMessage: 'Invalid product data. Check required fields and prices.',
       data: parsed.error.flatten(),
     })
   }

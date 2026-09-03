@@ -1,6 +1,7 @@
 <script setup lang="ts">
-const { data: settings, refresh } = await useFetch('/api/settings')
+const { data: settings, error: settingsError, refresh } = await useFetch('/api/settings')
 const { data: adminData } = await useFetch('/api/admin/me')
+const { getErrorMessage } = useApiError()
 
 const saving = ref(false)
 const uploading = ref(false)
@@ -60,9 +61,9 @@ async function uploadLogo(event: Event) {
     
     form.logo = result.url
     success.value = 'Logo uploaded! Remember to save.'
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Upload failed:', err)
-    error.value = err?.data?.message || 'Failed to upload logo'
+    error.value = getErrorMessage(err, 'Failed to upload logo')
   } finally {
     uploading.value = false
     input.value = ''
@@ -86,8 +87,8 @@ async function saveSettings() {
     await refresh()
     success.value = 'Settings saved successfully!'
     setTimeout(() => success.value = '', 3000)
-  } catch (err: any) {
-    error.value = err.data?.message || 'Failed to save settings'
+  } catch (err: unknown) {
+    error.value = getErrorMessage(err, 'Failed to save settings')
   } finally {
     saving.value = false
   }
@@ -97,8 +98,13 @@ async function saveSettings() {
 const router = useRouter()
 
 async function logout() {
-  await $fetch('/api/admin/logout', { method: 'POST' })
-  await router.push('/admin-login')
+  try {
+    await $fetch('/api/admin/logout', { method: 'POST' })
+    await router.push('/admin-login')
+  } catch (err) {
+    error.value = getErrorMessage(err, 'Failed to logout. Please try again.')
+    showLogoutConfirm.value = false
+  }
 }
 
 const adminEmail = computed(() => adminData.value?.email || 'Admin')
@@ -137,6 +143,13 @@ const lastLogin = computed(() => {
         <button class="toast-close" @click="success = ''">&times;</button>
       </div>
     </Transition>
+
+    <ErrorState
+      v-if="settingsError"
+      title="Could not load settings"
+      :message="getErrorMessage(settingsError)"
+      :retry="refresh"
+    />
 
     <div class="settings-layout">
       <!-- Sidebar Tabs -->

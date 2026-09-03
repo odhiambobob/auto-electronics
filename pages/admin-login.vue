@@ -18,6 +18,7 @@ const error = ref('')
 const loading = ref(false)
 const qrCodeUrl = ref('')
 const totpSecret = ref('')
+const { getErrorMessage } = useApiError()
 
 async function checkEmail() {
   if (!email.value.trim()) {
@@ -47,8 +48,8 @@ async function checkEmail() {
     } else {
       step.value = 'verify'
     }
-  } catch (err: any) {
-    error.value = err.data?.message || err.message || 'Invalid email'
+  } catch (err: unknown) {
+    error.value = getErrorMessage(err, 'Invalid email')
   } finally {
     loading.value = false
   }
@@ -75,8 +76,8 @@ async function verifyCode(isSetup = false) {
 
     // Redirect to admin dashboard
     await router.push(`/a/${result.adminPath}`)
-  } catch (err: any) {
-    error.value = err.data?.message || err.message || 'Invalid code'
+  } catch (err: unknown) {
+    error.value = getErrorMessage(err, 'Invalid code')
     code.value = ''
   } finally {
     loading.value = false

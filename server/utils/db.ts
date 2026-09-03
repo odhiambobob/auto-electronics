@@ -10,7 +10,10 @@ export function useDb() {
   const config = useRuntimeConfig()
   
   if (!config.databaseUrl) {
-    throw new Error('DATABASE_URL is not configured')
+    throw createError({
+      statusCode: 503,
+      statusMessage: 'Database is not configured',
+    })
   }
 
   const client = postgres(config.databaseUrl, {

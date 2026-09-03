@@ -14,6 +14,13 @@ if (serverAdminPath) {
   adminPath.value = serverAdminPath
 }
 
+if (pathError.value && !serverAdminPath) {
+  throw createError({
+    statusCode: 503,
+    statusMessage: 'Admin is temporarily unavailable. Please try again.',
+  })
+}
+
 // Get the path parts from the URL
 const pathParts = (route.params.path as string[]) || []
 const urlAdminPath = pathParts[0] // First part should be the admin path

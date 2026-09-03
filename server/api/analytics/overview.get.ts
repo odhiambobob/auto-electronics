@@ -1,6 +1,6 @@
 import { eq, sql, gte, and } from 'drizzle-orm'
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   // Require admin authentication
   await requireAdmin(event)
   

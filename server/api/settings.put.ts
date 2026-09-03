@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 const updateSettingsSchema = z.record(z.unknown())
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   // Require admin authentication
   await requireAdmin(event)
   

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-const { data: products } = await useFetch('/api/products')
+const { data: products, error: productsError, refresh } = await useFetch('/api/products')
 const featured = computed(() => products.value?.filter(p => p.featured) || [])
 const hero = computed(() => featured.value[0])
 const rest = computed(() => featured.value.slice(1))
 
 const config = useRuntimeConfig()
+const { getErrorMessage } = useApiError()
 
 useSeoMeta({
   title: config.public.siteName,
@@ -42,7 +43,13 @@ useSeoMeta({
         <h2 id="picks-heading">Selected now</h2>
         <NuxtLink to="/products">All products</NuxtLink>
       </div>
-      <div class="bento">
+      <ErrorState
+        v-if="productsError"
+        title="Could not load products"
+        :message="getErrorMessage(productsError, 'The catalogue is unavailable right now.')"
+        :retry="refresh"
+      />
+      <div v-else class="bento">
         <ProductCard v-if="hero" :product="hero" large />
         <div class="stack">
           <ProductCard v-for="product in rest" :key="product.productId" :product="product" />

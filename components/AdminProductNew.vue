@@ -7,6 +7,7 @@ const error = ref('')
 const uploading = ref(false)
 const showPreview = ref(false)
 const createdProduct = ref<any>(null)
+const { getErrorMessage } = useApiError()
 
 const form = reactive({
   productId: '',
@@ -155,8 +156,7 @@ async function uploadImages(event: Event) {
       form.images.push(result.url)
     }
   } catch (err) {
-    console.error('Upload failed:', err)
-    error.value = 'Failed to upload one or more images'
+    error.value = getErrorMessage(err, 'Failed to upload one or more images')
   } finally {
     uploading.value = false
     input.value = ''
@@ -192,8 +192,8 @@ async function createProduct() {
     })
     createdProduct.value = product
     showPreview.value = true
-  } catch (err: any) {
-    error.value = err.data?.message || 'Failed to create product'
+  } catch (err: unknown) {
+    error.value = getErrorMessage(err, 'Failed to create product')
   } finally {
     saving.value = false
   }

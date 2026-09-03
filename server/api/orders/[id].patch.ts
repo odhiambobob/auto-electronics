@@ -7,7 +7,7 @@ const updateOrderSchema = z.object({
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   // Require admin authentication
   await requireAdmin(event)
   

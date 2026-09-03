@@ -1,4 +1,4 @@
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   const sessionId = getSessionFromEvent(event)
   
   if (sessionId) {

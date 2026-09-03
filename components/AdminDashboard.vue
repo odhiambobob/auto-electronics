@@ -8,12 +8,15 @@ const countryFilter = ref('')
 const periodFilter = ref('30')
 
 // Fetch dashboard stats
-const { data: ordersData } = await useFetch('/api/orders', { query: { limit: 100 } })
-const { data: analytics } = await useFetch('/api/analytics/overview')
-const { data: earnings, refresh: refreshEarnings } = await useFetch('/api/analytics/earnings', { 
+const { data: ordersData, error: ordersError } = await useFetch('/api/orders', { query: { limit: 100 } })
+const { data: analytics, error: analyticsError } = await useFetch('/api/analytics/overview')
+const { data: earnings, error: earningsError, refresh: refreshEarnings } = await useFetch('/api/analytics/earnings', { 
   query: computed(() => ({ days: parseInt(periodFilter.value) }))
 })
-const { data: products } = await useFetch('/api/admin/products')
+const { data: products, error: productsError } = await useFetch('/api/admin/products')
+const { getErrorMessage } = useApiError()
+
+const dashboardError = computed(() => ordersError.value || analyticsError.value || earningsError.value || productsError.value)
 
 // Watch period filter changes
 watch(periodFilter, () => refreshEarnings())
@@ -146,6 +149,12 @@ function getCountryFlag(country: string): string {
         <CustomSelect v-model="periodFilter" :options="periodOptions" />
       </div>
     </div>
+
+    <ErrorState
+      v-if="dashboardError"
+      title="Could not load dashboard data"
+      :message="getErrorMessage(dashboardError)"
+    />
 
     <!-- Stats Overview -->
     <div class="stats-grid">

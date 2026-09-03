@@ -4,10 +4,11 @@ const adminPath = useState<string>('adminPath')
 
 const days = ref(30)
 
-const { data: analytics, refresh } = await useFetch('/api/analytics/earnings', {
+const { data: analytics, error: analyticsError, refresh } = await useFetch('/api/analytics/earnings', {
   query: { days },
   watch: [days],
 })
+const { getErrorMessage } = useApiError()
 
 const totalRevenue = computed(() => {
   if (!analytics.value?.dailyEarnings) return 0
@@ -42,6 +43,14 @@ const maxRevenue = computed(() => {
       </div>
     </div>
 
+    <ErrorState
+      v-if="analyticsError"
+      title="Could not load analytics"
+      :message="getErrorMessage(analyticsError)"
+      :retry="refresh"
+    />
+
+    <template v-else>
     <div class="stats-grid">
       <div class="stat-card">
         <p class="label">Total Revenue</p>
@@ -148,6 +157,7 @@ const maxRevenue = computed(() => {
         </p>
       </div>
     </div>
+    </template>
   </div>
 </template>
 

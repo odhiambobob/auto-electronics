@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const route = useRoute()
-const { data: settings } = await useFetch('/api/settings')
+const { data: settings } = await useFetch('/api/settings', {
+  default: () => ({} as Record<string, unknown>),
+})
 </script>
 
 <template>

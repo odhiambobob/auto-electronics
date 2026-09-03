@@ -1,6 +1,6 @@
 import { eq, and } from 'drizzle-orm'
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   const productId = getRouterParam(event, 'id')
   
   if (!productId) {

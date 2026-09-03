@@ -1,7 +1,8 @@
 <script setup lang="ts">
-const { data: products } = await useFetch('/api/products')
+const { data: products, error: productsError, refresh } = await useFetch('/api/products')
 const { formatMoney } = useFormat()
 const { getCategories, priceBounds } = useCatalog()
+const { getErrorMessage } = useApiError()
 
 const config = useRuntimeConfig()
 
@@ -108,7 +109,13 @@ function reset() {
 
       <section>
         <p class="count">{{ filtered.length }} product{{ filtered.length === 1 ? '' : 's' }}</p>
-        <div v-if="filtered.length" class="grid">
+        <ErrorState
+          v-if="productsError"
+          title="Could not load products"
+          :message="getErrorMessage(productsError, 'The catalogue is unavailable right now.')"
+          :retry="refresh"
+        />
+        <div v-else-if="filtered.length" class="grid">
           <ProductCard v-for="product in filtered" :key="product.productId" :product="product" />
         </div>
         <p v-else class="empty">Nothing in that range. Reset the filters or pick another category.</p>

@@ -8,7 +8,7 @@ const verifyTotpSchema = z.object({
   isSetup: z.boolean().optional(),
 })
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   const body = await readBody(event)
   const parsed = verifyTotpSchema.safeParse(body)
   

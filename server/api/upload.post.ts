@@ -1,6 +1,6 @@
 import { put } from '@vercel/blob'
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   // Require admin authentication
   await requireAdmin(event)
   

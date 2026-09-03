@@ -77,6 +77,14 @@ a {
   z-index: 80;
 }
 
+.error-banner {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 14px;
+}
+
 .skip:focus {
   top: 12px;
 }

@@ -5,7 +5,7 @@ const checkEmailSchema = z.object({
   email: z.string().email(),
 })
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   const body = await readBody(event)
   const parsed = checkEmailSchema.safeParse(body)
   
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   if (parsed.data.email.toLowerCase() !== config.adminEmail.toLowerCase()) {
     throw createError({
       statusCode: 401,
-      statusMessage: 'Unauthorized',
+      statusMessage: 'This email is not authorized for admin access',
     })
   }
 

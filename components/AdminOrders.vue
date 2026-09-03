@@ -13,10 +13,12 @@ const queryParams = computed(() => {
   return params
 })
 
-const { data, refresh } = await useFetch('/api/orders', {
+const { data, error: ordersError, refresh } = await useFetch('/api/orders', {
   query: queryParams,
   watch: [queryParams],
 })
+const { getErrorMessage } = useApiError()
+const exportError = ref('')
 
 const orders = computed(() => data.value?.orders || [])
 const pagination = computed(() => data.value?.pagination || { page: 1, totalPages: 1, total: 0 })
@@ -32,33 +34,38 @@ function nextPage() {
 }
 
 async function exportCsv() {
-  const allOrders = await $fetch('/api/orders', {
-    query: { ...queryParams.value, limit: 10000 },
-  })
-  
-  const headers = ['Order ID', 'Customer', 'Phone', 'City', 'Product', 'Package', 'Qty', 'Total', 'Status', 'Order Date', 'Delivery Date']
-  const rows = allOrders.orders.map((o: any) => [
-    o.orderId,
-    o.customerName,
-    o.primaryPhone,
-    o.city,
-    o.productName,
-    o.package,
-    o.quantity,
-    o.totalPrice,
-    o.status,
-    new Date(o.orderDate).toISOString().split('T')[0],
-    o.deliveryDate,
-  ])
-  
-  const csv = [headers.join(','), ...rows.map((r: any[]) => r.map(v => `"${v}"`).join(','))].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `orders-${new Date().toISOString().split('T')[0]}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+  exportError.value = ''
+  try {
+    const allOrders = await $fetch('/api/orders', {
+      query: { ...queryParams.value, limit: 10000 },
+    })
+    
+    const headers = ['Order ID', 'Customer', 'Phone', 'City', 'Product', 'Package', 'Qty', 'Total', 'Status', 'Order Date', 'Delivery Date']
+    const rows = allOrders.orders.map((o: any) => [
+      o.orderId,
+      o.customerName,
+      o.primaryPhone,
+      o.city,
+      o.productName,
+      o.package,
+      o.quantity,
+      o.totalPrice,
+      o.status,
+      new Date(o.orderDate).toISOString().split('T')[0],
+      o.deliveryDate,
+    ])
+    
+    const csv = [headers.join(','), ...rows.map((r: any[]) => r.map(v => `"${v}"`).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `orders-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    exportError.value = getErrorMessage(err, 'Failed to export orders')
+  }
 }
 </script>
 
@@ -69,6 +76,16 @@ async function exportCsv() {
       <button class="btn ghost" @click="exportCsv">Export CSV</button>
     </div>
 
+    <p v-if="exportError" class="error-banner">{{ exportError }}</p>
+
+    <ErrorState
+      v-if="ordersError"
+      title="Could not load orders"
+      :message="getErrorMessage(ordersError)"
+      :retry="refresh"
+    />
+
+    <template v-else>
     <div class="filters">
       <div class="filter-group">
         <label>Status</label>
@@ -125,6 +142,7 @@ async function exportCsv() {
         <button :disabled="page === pagination.totalPages" @click="nextPage">Next</button>
       </div>
     </div>
+    </template>
   </div>
 </template>
 

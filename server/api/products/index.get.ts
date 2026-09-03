@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 
-export default defineEventHandler(async () => {
+export default defineSafeEventHandler(async () => {
   const db = useDb()
   
   const productList = await db

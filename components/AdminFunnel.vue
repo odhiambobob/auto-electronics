@@ -3,10 +3,11 @@ const adminPath = useState<string>('adminPath')
 
 const days = ref(7)
 
-const { data: funnel, refresh } = await useFetch('/api/analytics/funnel', {
+const { data: funnel, error: funnelError, refresh } = await useFetch('/api/analytics/funnel', {
   query: { days },
   watch: [days],
 })
+const { getErrorMessage } = useApiError()
 
 const eventLabels: Record<string, string> = {
   page_view: 'Page Views',
@@ -36,7 +37,14 @@ const eventLabels: Record<string, string> = {
       Track where visitors drop off in the purchase process. Each stage shows unique visitors and the dropoff rate from the previous stage.
     </p>
 
-    <div class="card">
+    <ErrorState
+      v-if="funnelError"
+      title="Could not load funnel data"
+      :message="getErrorMessage(funnelError)"
+      :retry="refresh"
+    />
+
+    <div v-else class="card">
       <div v-if="funnel?.funnel?.length" class="funnel-chart">
         <div 
           v-for="(stage, index) in funnel.funnel" 

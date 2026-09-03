@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 const createProductSchema = z.object({
@@ -6,10 +7,10 @@ const createProductSchema = z.object({
   shortDescription: z.string().min(1),
   description: z.string().min(1),
   images: z.array(z.string()).default([]),
-  pack1Price: z.number().positive(),
-  pack2Price: z.number().positive(),
-  pack3Price: z.number().positive(),
-  unitPrice: z.number().positive(),
+  pack1Price: z.number().nonnegative(),
+  pack2Price: z.number().nonnegative(),
+  pack3Price: z.number().nonnegative(),
+  unitPrice: z.number().nonnegative(),
   category: z.string().min(1),
   country: z.string().default('Kenya'),
   features: z.array(z.string()).default([]),
@@ -19,7 +20,7 @@ const createProductSchema = z.object({
   currency: z.string().default('KES'),
 })
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   // Require admin authentication
   await requireAdmin(event)
   
@@ -29,12 +30,24 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Invalid product data',
+      statusMessage: 'Invalid product data. Check required fields and prices.',
       data: parsed.error.flatten(),
     })
   }
 
   const db = useDb()
+
+  const [existing] = await db
+    .select({ productId: schema.products.productId })
+    .from(schema.products)
+    .where(eq(schema.products.productId, parsed.data.productId))
+
+  if (existing) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'A product with this ID already exists',
+    })
+  }
   
   const [product] = await db
     .insert(schema.products)

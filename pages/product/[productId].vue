@@ -6,12 +6,13 @@ const router = useRouter()
 const config = useRuntimeConfig()
 const packs: PackSize[] = [1, 2, 3]
 
-const { data: product, error: productError } = await useFetch<Product>(`/api/products/${route.params.productId}`)
+const { data: product, error: productError, refresh: refreshProduct } = await useFetch<Product>(`/api/products/${route.params.productId}`)
 
 const { packPrice, packLabel, savingsPercent } = useCatalog()
 const { formatMoney, formatCount, defaultDeliveryIso, tomorrowIso } = useFormat()
 const { track, initPixel, trackViewContent, trackPurchase } = useTracking()
 const { stripMarkdown } = useMarkdown()
+const { getErrorMessage } = useApiError()
 
 const pack = ref<PackSize>(1)
 const quantity = ref(1)
@@ -152,7 +153,7 @@ async function placeOrder() {
     
     await router.push('/order/success')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Could not place the order.'
+    error.value = getErrorMessage(err, 'Could not place the order. Please try again.')
   } finally {
     submitting.value = false
   }
@@ -183,7 +184,17 @@ function trackFieldFilled(field: string) {
 </script>
 
 <template>
-  <div v-if="!product" class="page missing">
+  <div v-if="productError && productError.statusCode !== 404" class="page missing">
+    <ErrorState
+      title="Could not load this product"
+      :message="getErrorMessage(productError)"
+      :retry="refreshProduct"
+    >
+      <NuxtLink to="/products">Back to the catalogue</NuxtLink>
+    </ErrorState>
+  </div>
+
+  <div v-else-if="!product" class="page missing">
     <h1>This product is not listed.</h1>
     <NuxtLink to="/products">Back to the catalogue</NuxtLink>
   </div>

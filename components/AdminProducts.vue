@@ -4,12 +4,14 @@ const { formatMoney } = useFormat()
 const adminPath = useState<string>('adminPath')
 
 // Fetch all products (including inactive for admin)
-const { data: products, refresh } = await useFetch('/api/admin/products')
+const { data: products, error: productsError, refresh } = await useFetch('/api/admin/products')
 
 const duplicating = ref<string | null>(null)
 const deleting = ref<string | null>(null)
 const filterCountry = ref('')
 const showDeleteConfirm = ref<string | null>(null)
+const actionError = ref('')
+const { getErrorMessage } = useApiError()
 
 // Get unique countries for filtering
 const countries = computed(() => {
@@ -34,19 +36,29 @@ const filteredProducts = computed(() => {
 })
 
 async function toggleActive(product: any) {
-  await $fetch(`/api/products/${product.productId}`, {
-    method: 'PUT',
-    body: { isActive: !product.isActive },
-  })
-  await refresh()
+  actionError.value = ''
+  try {
+    await $fetch(`/api/products/${product.productId}`, {
+      method: 'PUT',
+      body: { isActive: !product.isActive },
+    })
+    await refresh()
+  } catch (err) {
+    actionError.value = getErrorMessage(err, 'Failed to update product status')
+  }
 }
 
 async function toggleFeatured(product: any) {
-  await $fetch(`/api/products/${product.productId}`, {
-    method: 'PUT',
-    body: { featured: !product.featured },
-  })
-  await refresh()
+  actionError.value = ''
+  try {
+    await $fetch(`/api/products/${product.productId}`, {
+      method: 'PUT',
+      body: { featured: !product.featured },
+    })
+    await refresh()
+  } catch (err) {
+    actionError.value = getErrorMessage(err, 'Failed to update featured status')
+  }
 }
 
 async function duplicateProduct(product: any) {
@@ -89,9 +101,9 @@ async function duplicateProduct(product: any) {
     // Refresh and redirect to edit the new product
     await refresh()
     await router.push(`/a/${adminPath.value}/products/${newProductId}`)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to duplicate product:', err)
-    alert(err?.data?.message || 'Failed to duplicate product. The product ID may already exist.')
+    actionError.value = getErrorMessage(err, 'Failed to duplicate product. The product ID may already exist.')
   } finally {
     duplicating.value = null
   }
@@ -114,9 +126,9 @@ async function deleteProduct(productId: string) {
     })
     showDeleteConfirm.value = null
     await refresh()
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to delete product:', err)
-    alert(err?.data?.message || 'Failed to delete product')
+    actionError.value = getErrorMessage(err, 'Failed to delete product')
   } finally {
     deleting.value = null
   }
@@ -142,7 +154,16 @@ async function deleteProduct(productId: string) {
       <span class="product-count">{{ filteredProducts.length }} product(s)</span>
     </div>
 
-    <div class="card">
+    <p v-if="actionError" class="error-banner">{{ actionError }}</p>
+
+    <ErrorState
+      v-if="productsError"
+      title="Could not load products"
+      :message="getErrorMessage(productsError)"
+      :retry="refresh"
+    />
+
+    <div v-else class="card">
       <table v-if="filteredProducts.length" class="data-table">
         <thead>
           <tr>

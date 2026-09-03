@@ -13,7 +13,7 @@ const createOrderSchema = z.object({
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   const body = await readBody(event)
   const parsed = createOrderSchema.safeParse(body)
   

@@ -6,7 +6,7 @@ const setupTotpSchema = z.object({
   email: z.string().email(),
 })
 
-export default defineEventHandler(async (event) => {
+export default defineSafeEventHandler(async (event) => {
   const body = await readBody(event)
   const parsed = setupTotpSchema.safeParse(body)
   

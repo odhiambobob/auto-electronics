@@ -3,9 +3,11 @@ const props = defineProps<{ orderId: string }>()
 const { formatMoney, formatDate, formatOrderTime } = useFormat()
 const adminPath = useState<string>('adminPath')
 
-const { data: order, refresh } = await useFetch(`/api/orders/${props.orderId}`)
+const { data: order, error: orderError, refresh } = await useFetch(`/api/orders/${props.orderId}`)
+const { getErrorMessage } = useApiError()
 
 const updating = ref(false)
+const updateError = ref('')
 const newStatus = ref('')
 const notes = ref('')
 
@@ -20,6 +22,7 @@ const statuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
 
 async function updateOrder() {
   updating.value = true
+  updateError.value = ''
   try {
     await $fetch(`/api/orders/${props.orderId}`, {
       method: 'PATCH',
@@ -30,7 +33,7 @@ async function updateOrder() {
     })
     await refresh()
   } catch (err) {
-    console.error('Failed to update order:', err)
+    updateError.value = getErrorMessage(err, 'Failed to update order')
   } finally {
     updating.value = false
   }
@@ -38,7 +41,16 @@ async function updateOrder() {
 </script>
 
 <template>
-  <div v-if="order" class="order-detail">
+  <ErrorState
+    v-if="orderError"
+    title="Could not load this order"
+    :message="getErrorMessage(orderError)"
+    :retry="refresh"
+  >
+    <NuxtLink :to="`/a/${adminPath}/orders`">Back to orders</NuxtLink>
+  </ErrorState>
+
+  <div v-else-if="order" class="order-detail">
     <div class="admin-header">
       <div>
         <NuxtLink :to="`/a/${adminPath}/orders`" class="back-link">&larr; All Orders</NuxtLink>
@@ -101,6 +113,7 @@ async function updateOrder() {
             <label>Internal Notes</label>
             <textarea v-model="notes" rows="3" placeholder="Add notes about this order..."></textarea>
           </div>
+          <p v-if="updateError" class="error-banner">{{ updateError }}</p>
           <div class="form-actions">
             <button class="btn primary" type="submit" :disabled="updating">
               {{ updating ? 'Saving...' : 'Save Changes' }}
@@ -110,11 +123,18 @@ async function updateOrder() {
       </div>
     </div>
   </div>
+
+  <p v-else class="empty">Loading order…</p>
 </template>
 
 <style scoped>
 .order-detail {
   max-width: 1000px;
+}
+
+.empty {
+  color: var(--muted);
+  padding: 32px;
 }
 
 .back-link {

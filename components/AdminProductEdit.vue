@@ -4,7 +4,7 @@ const router = useRouter()
 const adminPath = useState<string>('adminPath')
 
 // Use admin endpoint to fetch product (includes inactive products)
-const { data: product, refresh } = await useFetch(`/api/admin/products/${props.productId}`)
+const { data: product, error: productError, refresh } = await useFetch(`/api/admin/products/${props.productId}`)
 
 const saving = ref(false)
 const error = ref('')
@@ -14,6 +14,7 @@ const showPreview = ref(false)
 const duplicating = ref(false)
 const deleting = ref(false)
 const showDeleteConfirm = ref(false)
+const { getErrorMessage } = useApiError()
 
 const form = reactive({
   productName: '',
@@ -184,8 +185,7 @@ async function uploadImages(event: Event) {
       form.images.push(result.url)
     }
   } catch (err) {
-    console.error('Upload failed:', err)
-    error.value = 'Failed to upload one or more images'
+    error.value = getErrorMessage(err, 'Failed to upload one or more images')
   } finally {
     uploading.value = false
     input.value = ''
@@ -212,8 +212,8 @@ async function updateProduct() {
     })
     await refresh()
     success.value = 'Product updated successfully!'
-  } catch (err: any) {
-    error.value = err.data?.message || 'Failed to update product'
+  } catch (err: unknown) {
+    error.value = getErrorMessage(err, 'Failed to update product')
   } finally {
     saving.value = false
   }
@@ -266,9 +266,9 @@ async function duplicateProduct() {
     
     // Redirect to edit the new product
     await router.push(`/a/${adminPath.value}/products/${newProductId}`)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to duplicate product:', err)
-    error.value = err?.data?.message || 'Failed to duplicate product. The product ID may already exist.'
+    error.value = getErrorMessage(err, 'Failed to duplicate product. The product ID may already exist.')
   } finally {
     duplicating.value = false
   }
@@ -284,9 +284,9 @@ async function deleteProduct() {
     })
     // Redirect to products list
     await router.push(`/a/${adminPath.value}/products`)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to delete product:', err)
-    error.value = err?.data?.message || 'Failed to delete product'
+    error.value = getErrorMessage(err, 'Failed to delete product')
     showDeleteConfirm.value = false
   } finally {
     deleting.value = false
@@ -558,11 +558,27 @@ async function deleteProduct() {
       </div>
     </Teleport>
   </div>
+
+  <ErrorState
+    v-else-if="productError"
+    title="Could not load this product"
+    :message="getErrorMessage(productError, 'This product could not be loaded for editing.')"
+    :retry="refresh"
+  >
+    <NuxtLink :to="`/a/${adminPath}/products`">Back to products</NuxtLink>
+  </ErrorState>
+
+  <p v-else class="empty">Loading product…</p>
 </template>
 
 <style scoped>
 .product-form {
   max-width: 1000px;
+}
+
+.empty {
+  color: var(--muted);
+  padding: 32px;
 }
 
 .back-link {
