@@ -71,7 +71,8 @@ export function useTracking() {
     window.gtag?.('event', 'page_view', { page_path: path, page_title: title })
   }
 
-  function initPixel(pixelId?: string) {
+  // Initialize Meta Pixel without tracking PageView
+  function initPixel(pixelId?: string, trackPageView = false) {
     if (import.meta.server) return
     const id = pixelId || config.public.defaultPixel
     if (!id) return
@@ -88,7 +89,25 @@ export function useTracking() {
     }
 
     window.fbq('init', id)
-    window.fbq('track', 'PageView')
+    
+    // Only track PageView if explicitly requested
+    if (trackPageView) {
+      window.fbq('track', 'PageView')
+    }
+  }
+
+  // Track a hardcoded purchase for Meta Pixel (KES 500)
+  function trackMetaPurchase(pixelId?: string) {
+    if (import.meta.server) return
+    
+    // Initialize pixel first if not already done
+    initPixel(pixelId, false)
+    
+    // Track purchase with hardcoded value
+    window.fbq?.('track', 'Purchase', {
+      value: 500,
+      currency: 'KES',
+    })
   }
 
   function trackViewContent(input: {
@@ -128,5 +147,6 @@ export function useTracking() {
     initPixel,
     trackViewContent,
     trackPurchase,
+    trackMetaPurchase,
   }
 }

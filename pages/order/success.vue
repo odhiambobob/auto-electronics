@@ -5,6 +5,7 @@ const router = useRouter()
 const config = useRuntimeConfig()
 const { formatMoney, formatOrderTime } = useFormat()
 const { whatsappUrl, orderWhatsappMessage } = useWhatsapp()
+const { trackMetaPurchase } = useTracking()
 
 const order = ref<Order | null>(null)
 
@@ -16,6 +17,10 @@ onMounted(() => {
   }
   try {
     order.value = JSON.parse(raw) as Order
+    
+    // Track Meta Pixel Purchase event (hardcoded KES 500)
+    // Uses the default pixel ID from config
+    trackMetaPurchase()
   } catch {
     router.replace('/')
   }
