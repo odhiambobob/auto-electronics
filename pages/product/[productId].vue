@@ -29,7 +29,7 @@ const { data: product, error: productError, refresh: refreshProduct } = await us
 
 const { packPrice, packLabel, savingsPercent } = useCatalog()
 const { formatMoney, formatCount, defaultDeliveryIso, tomorrowIso } = useFormat()
-const { track, initPixel, trackViewContent, trackPurchase } = useTracking()
+const { track, initPixel, trackViewContent } = useTracking()
 const { getCheckoutEvent } = useKeverd()
 const { stripMarkdown } = useMarkdown()
 const { getErrorMessage } = useApiError()
@@ -90,6 +90,7 @@ onMounted(() => {
       name: product.value.productName,
       value: product.value.pack1Price,
       currency: product.value.currency,
+      pixelId: product.value.metaPixel,
     })
   }
 
@@ -172,10 +173,12 @@ async function placeOrder() {
     })
 
     // Store order for success page
-    sessionStorage.setItem('ae.lastOrder', JSON.stringify(order))
+    sessionStorage.setItem('ae.lastOrder', JSON.stringify({
+      ...order,
+      metaPixel: item.metaPixel,
+    }))
     
     track('order_submitted', { productId: item.productId })
-    trackPurchase({ id: item.productId, value: total.value, currency: item.currency })
     
     await router.push('/order/success')
   } catch (err) {

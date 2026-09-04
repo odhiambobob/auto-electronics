@@ -2,7 +2,13 @@ import type { EventType } from '~/types/store'
 
 declare global {
   interface Window {
-    fbq?: (...args: unknown[]) => void
+    fbq?: ((...args: unknown[]) => void) & {
+      callMethod?: (...args: unknown[]) => void
+      queue: unknown[]
+      push: unknown
+      loaded: boolean
+      version: string
+    }
     _fbq?: unknown
     dataLayer?: unknown[]
     gtag?: (...args: unknown[]) => void
@@ -12,7 +18,6 @@ declare global {
 export function useTracking() {
   const config = useRuntimeConfig()
   
-  // Get or create visitor ID
   function getVisitorId(): string {
     if (import.meta.server) return ''
     
@@ -24,7 +29,6 @@ export function useTracking() {
     return visitorId
   }
 
-  // Track event to backend for analytics
   async function track(eventType: EventType, data?: { productId?: string; metadata?: Record<string, unknown> }) {
     if (import.meta.server) return
     
@@ -71,39 +75,44 @@ export function useTracking() {
     window.gtag?.('event', 'page_view', { page_path: path, page_title: title })
   }
 
-  // Initialize Meta Pixel without tracking PageView
-  function initPixel(pixelId?: string, trackPageView = false) {
+  function resolvePixelId(pixelId?: string | null) {
+    return (pixelId || config.public.defaultPixel || '').trim()
+  }
+
+  // Official Meta Pixel bootstrap. A custom stub with window.fbq already set
+  // makes fbevents.js bail out (`if (fbq) return`) and events never leave the browser.
+  function initPixel(pixelId?: string | null, trackPageView = false) {
     if (import.meta.server) return
-    const id = pixelId || config.public.defaultPixel
+    const id = resolvePixelId(pixelId)
     if (!id) return
 
     if (!window.fbq) {
-      const stub = function fbq(...args: unknown[]) {
-        const queue = (stub as unknown as { queue: unknown[] }).queue
-        queue.push(args)
-      }
-      ;(stub as unknown as { queue: unknown[] }).queue = []
-      window.fbq = stub
-      window._fbq = stub
+      const fbq = function (...args: unknown[]) {
+        if (fbq.callMethod) {
+          fbq.callMethod(...args)
+        } else {
+          fbq.queue.push(args)
+        }
+      } as NonNullable<Window['fbq']>
+      fbq.push = fbq
+      fbq.loaded = true
+      fbq.version = '2.0'
+      fbq.queue = []
+      window.fbq = fbq
+      window._fbq = fbq
       loadScript('https://connect.facebook.net/en_US/fbevents.js', 'fb-pixel')
     }
 
     window.fbq('init', id)
-    
-    // Only track PageView if explicitly requested
+
     if (trackPageView) {
       window.fbq('track', 'PageView')
     }
   }
 
-  // Track a hardcoded purchase for Meta Pixel (KES 500)
-  function trackMetaPurchase(pixelId?: string) {
+  function trackMetaPurchase(pixelId?: string | null) {
     if (import.meta.server) return
-    
-    // Initialize pixel first if not already done
     initPixel(pixelId, false)
-    
-    // Track purchase with hardcoded value
     window.fbq?.('track', 'Purchase', {
       value: 500,
       currency: 'KES',
@@ -115,25 +124,14 @@ export function useTracking() {
     name: string
     value: number
     currency: string
+    pixelId?: string | null
   }) {
     if (import.meta.server) return
+    initPixel(input.pixelId, false)
     window.fbq?.('track', 'ViewContent', {
       content_ids: [input.id],
       content_name: input.name,
       content_type: 'product',
-      value: input.value,
-      currency: input.currency,
-    })
-  }
-
-  function trackPurchase(input: {
-    id: string
-    value: number
-    currency: string
-  }) {
-    if (import.meta.server) return
-    window.fbq?.('track', 'Purchase', {
-      content_ids: [input.id],
       value: input.value,
       currency: input.currency,
     })
@@ -146,7 +144,7 @@ export function useTracking() {
     trackPage,
     initPixel,
     trackViewContent,
-    trackPurchase,
     trackMetaPurchase,
+    resolvePixelId,
   }
 }

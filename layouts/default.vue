@@ -1,4 +1,14 @@
 <script setup lang="ts">
+const route = useRoute()
+const { track } = useTracking()
+
+onMounted(() => {
+  track('page_view')
+})
+
+watch(() => route.path, () => {
+  track('page_view')
+})
 </script>
 
 <template>

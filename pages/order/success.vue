@@ -7,7 +7,7 @@ const { formatMoney, formatOrderTime } = useFormat()
 const { whatsappUrl, orderWhatsappMessage } = useWhatsapp()
 const { trackMetaPurchase } = useTracking()
 
-const order = ref<Order | null>(null)
+const order = ref<(Order & { metaPixel?: string | null }) | null>(null)
 
 onMounted(() => {
   const raw = sessionStorage.getItem('ae.lastOrder')
@@ -16,11 +16,13 @@ onMounted(() => {
     return
   }
   try {
-    order.value = JSON.parse(raw) as Order
-    
-    // Track Meta Pixel Purchase event (hardcoded KES 500)
-    // Uses the default pixel ID from config
-    trackMetaPurchase()
+    order.value = JSON.parse(raw) as Order & { metaPixel?: string | null }
+
+    const purchaseKey = `ae.fbPurchase.${order.value.orderId}`
+    if (!sessionStorage.getItem(purchaseKey)) {
+      sessionStorage.setItem(purchaseKey, '1')
+      trackMetaPurchase(order.value.metaPixel)
+    }
   } catch {
     router.replace('/')
   }

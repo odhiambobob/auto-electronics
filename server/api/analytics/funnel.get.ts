@@ -1,7 +1,8 @@
-import { sql, gte, eq } from 'drizzle-orm'
+import { sql, gte, eq, and } from 'drizzle-orm'
+
+const eventTypes = ['page_view', 'product_view', 'checkout_open', 'form_started', 'field_filled', 'order_submitted'] as const
 
 export default defineSafeEventHandler(async (event) => {
-  // Require admin authentication
   await requireAdmin(event)
   
   const query = getQuery(event)
@@ -9,35 +10,31 @@ export default defineSafeEventHandler(async (event) => {
   
   const db = useDb()
   
-  // Calculate start date
   const startDate = new Date()
   startDate.setDate(startDate.getDate() - days)
   startDate.setHours(0, 0, 0, 0)
 
-  // Get funnel data - count unique visitors at each stage
-  const eventTypes = ['page_view', 'product_view', 'checkout_open', 'form_started', 'field_filled', 'order_submitted']
-  
   const funnelData = await Promise.all(
     eventTypes.map(async (eventType) => {
-      const [result] = await db
+      const rows = await db
         .select({
-          count: sql<number>`count(distinct ${schema.orderEvents.visitorId})`,
+          count: sql<number>`cast(count(distinct ${schema.orderEvents.visitorId}) as int)`,
         })
         .from(schema.orderEvents)
-        .where(
-          sql`${schema.orderEvents.eventType} = ${eventType} AND ${schema.orderEvents.createdAt} >= ${startDate}`
-        )
-      
+        .where(and(
+          eq(schema.orderEvents.eventType, eventType),
+          gte(schema.orderEvents.createdAt, startDate),
+        ))
+
       return {
         eventType,
-        count: Number(result.count),
+        count: Number(rows[0]?.count ?? 0),
       }
     })
   )
 
-  // Calculate dropoff rates
   const funnel = funnelData.map((stage, index) => {
-    const previousCount = index === 0 ? stage.count : funnelData[index - 1].count
+    const previousCount = index === 0 ? stage.count : funnelData[index - 1]?.count ?? 0
     const dropoffRate = previousCount > 0 
       ? Math.round(((previousCount - stage.count) / previousCount) * 100) 
       : 0
@@ -45,18 +42,17 @@ export default defineSafeEventHandler(async (event) => {
     return {
       ...stage,
       dropoffRate,
-      conversionRate: funnelData[0].count > 0 
+      conversionRate: funnelData[0]?.count
         ? Math.round((stage.count / funnelData[0].count) * 100)
         : 0,
     }
   })
 
-  // Get dropoff by product
   const dropoffByProduct = await db
     .select({
       productId: schema.orderEvents.productId,
       eventType: schema.orderEvents.eventType,
-      count: sql<number>`count(distinct ${schema.orderEvents.visitorId})`,
+      count: sql<number>`cast(count(distinct ${schema.orderEvents.visitorId}) as int)`,
     })
     .from(schema.orderEvents)
     .where(gte(schema.orderEvents.createdAt, startDate))
@@ -65,10 +61,10 @@ export default defineSafeEventHandler(async (event) => {
 
   return {
     funnel,
-    dropoffByProduct: dropoffByProduct.map(d => ({
-      productId: d.productId,
-      eventType: d.eventType,
-      count: Number(d.count),
+    dropoffByProduct: dropoffByProduct.map((row) => ({
+      productId: row.productId,
+      eventType: row.eventType,
+      count: Number(row.count ?? 0),
     })),
   }
 })
