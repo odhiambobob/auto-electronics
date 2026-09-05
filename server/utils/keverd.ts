@@ -1,4 +1,5 @@
-import { Keverd } from '@keverdjs/node'
+import { Keverd, type VerifyResult } from '@keverdjs/node'
+import type { KeverdDeviceProfile } from '../db/schema'
 
 export type KeverdOrderCheck = {
   eventId: string | null
@@ -8,6 +9,7 @@ export type KeverdOrderCheck = {
   timesSeen: number | null
   errorStage: string | null
   error: string | null
+  profile: KeverdDeviceProfile | null
 }
 
 function clip(text: string, max = 500): string {
@@ -42,6 +44,56 @@ function toScore(value: number | null | undefined): number | null {
   return Math.round(value)
 }
 
+function readFlag(source: Record<string, unknown> | null | undefined, keys: string[]): boolean | null {
+  if (!source) return null
+  for (const key of keys) {
+    let current: unknown = source
+    for (const part of key.split('.')) {
+      if (!current || typeof current !== 'object') {
+        current = undefined
+        break
+      }
+      current = (current as Record<string, unknown>)[part]
+    }
+    if (typeof current === 'boolean') return current
+    if (typeof current === 'string' && /^(true|detected|yes)$/i.test(current)) return true
+    if (current && typeof current === 'object') {
+      const record = current as Record<string, unknown>
+      if (typeof record.detected === 'boolean') return record.detected
+      if (typeof record.value === 'boolean') return record.value
+    }
+  }
+  return null
+}
+
+export function pickDeviceProfile(result: VerifyResult): KeverdDeviceProfile {
+  const signals = {
+    ...(result.signals || {}),
+    ...(result.smart_signals || {}),
+  } as Record<string, unknown>
+  const ip = (result.ip_info || {}) as Record<string, unknown>
+  const location = (result.location || {}) as Record<string, unknown>
+
+  return {
+    country: result.country_name || (typeof location.country_name === 'string' ? location.country_name : null),
+    countryCode: result.country_code || (typeof ip.country_code === 'string' ? ip.country_code : null),
+    pageUrl: result.page_url,
+    timesSeen: typeof result.times_seen === 'number' ? result.times_seen : result.device_history?.times_seen ?? null,
+    isNew: result.is_new ?? result.device_history?.is_new ?? null,
+    firstSeen: result.first_seen ?? result.device_history?.first_seen ?? null,
+    lastSeen: result.last_seen ?? result.device_history?.last_seen ?? null,
+    uniqueIps: result.device_history?.unique_ip_count ?? null,
+    uniqueCountries: result.device_history?.unique_country_count ?? null,
+    action: result.action,
+    riskScore: toScore(result.risk_score),
+    incognito: readFlag(signals, ['incognito', 'privacy.incognito', 'privacySignals.incognito']),
+    vpn: readFlag(signals, ['vpn', 'ip.vpn', 'ip_info.vpn']),
+    proxy: readFlag(signals, ['proxy', 'ip.proxy', 'ip_info.proxy']),
+    bot: readFlag(signals, ['bot', 'bot_detected', 'automation.bot']),
+    reasons: Array.isArray(result.reason) ? result.reason.slice(0, 8) : [],
+  }
+}
+
 export async function verifyOrderEvent(
   eventId?: string | null,
   clientError?: { stage?: string | null; message?: string | null },
@@ -58,6 +110,7 @@ export async function verifyOrderEvent(
     timesSeen: null,
     errorStage: null,
     error: null,
+    profile: null,
   }
 
   if (clientError?.message) {
@@ -95,6 +148,7 @@ export async function verifyOrderEvent(
       timesSeen: typeof result.times_seen === 'number' ? result.times_seen : result.device_history?.times_seen ?? null,
       errorStage: empty.errorStage,
       error: empty.error,
+      profile: pickDeviceProfile(result),
     }
   } catch (error) {
     console.error('[Keverd] verify failed', error)

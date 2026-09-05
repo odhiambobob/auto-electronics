@@ -12,6 +12,7 @@ export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig()
   const publicKey = config.public.keverdPublicKey
   const route = useRoute()
+  const keverdLast = useState<{ eventId?: string; visitorId?: string } | null>('keverdLast', () => null)
 
   function skipReason(): 'preview' | 'disabled' | null {
     if (!publicKey) return 'disabled'
@@ -21,6 +22,19 @@ export default defineNuxtPlugin(() => {
     return null
   }
 
+  function pickIds(data: {
+    event_id?: string
+    requestId?: string
+    visitor_id?: string
+    visitorId?: string
+    fingerprint?: string
+  }) {
+    return {
+      eventId: data.event_id || data.requestId,
+      visitorId: data.visitor_id || data.visitorId || data.fingerprint,
+    }
+  }
+
   if (!skipReason()) {
     import('@keverdjs/agent')
       .then(async ({ Keverd }) => {
@@ -28,7 +42,10 @@ export default defineNuxtPlugin(() => {
           Keverd.init(publicKey)
         }
         // Page-load collect is what creates a Keverd event. init() alone does not.
-        await Keverd.getVisitorData()
+        const ids = pickIds(await Keverd.getVisitorData())
+        if (ids.eventId || ids.visitorId) {
+          keverdLast.value = ids
+        }
       })
       .catch(() => {})
   }
@@ -43,19 +60,18 @@ export default defineNuxtPlugin(() => {
         Keverd.init(publicKey)
       }
 
-      const data = await Keverd.getVisitorData()
-      const eventId = data.event_id || data.requestId
-      const visitorId = data.visitorId || data.fingerprint
+      const ids = pickIds(await Keverd.getVisitorData())
 
-      if (!eventId) {
+      if (!ids.eventId) {
         return {
-          visitorId,
+          visitorId: ids.visitorId,
           errorStage: 'browser',
           error: 'Keverd.getVisitorData() returned no event id.',
         }
       }
 
-      return { eventId, visitorId }
+      keverdLast.value = ids
+      return ids
     } catch (error) {
       return {
         errorStage: 'browser',

@@ -1,7 +1,12 @@
 <script setup lang="ts">
 const route = useRoute()
+const menuOpen = ref(false)
 const { data: settings } = await useFetch('/api/settings', {
   default: () => ({} as Record<string, unknown>),
+})
+
+watch(() => route.fullPath, () => {
+  menuOpen.value = false
 })
 </script>
 
@@ -23,7 +28,17 @@ const { data: settings } = await useFetch('/api/settings', {
           </span>
         </template>
       </NuxtLink>
-      <nav class="nav" aria-label="Primary">
+      <button
+        class="menu-btn"
+        type="button"
+        :aria-expanded="menuOpen"
+        aria-controls="site-nav"
+        @click="menuOpen = !menuOpen"
+      >
+        <span aria-hidden="true"><i /><i /><i /></span>
+        <span class="sr-only">{{ menuOpen ? 'Close menu' : 'Open menu' }}</span>
+      </button>
+      <nav id="site-nav" class="nav" :class="{ open: menuOpen }" aria-label="Primary">
         <NuxtLink to="/" :class="{ on: route.path === '/' }">Home</NuxtLink>
         <NuxtLink to="/products" :class="{ on: route.path === '/products' }">All products</NuxtLink>
       </nav>
@@ -115,5 +130,61 @@ const { data: settings } = await useFetch('/api/settings', {
 .nav a:hover {
   color: var(--ink);
   background: var(--chip);
+}
+
+.menu-btn {
+  display: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+@media (max-width: 720px) {
+  .header-inner {
+    flex-wrap: wrap;
+  }
+
+  .menu-btn {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg);
+    cursor: pointer;
+  }
+
+  .menu-btn span[aria-hidden] {
+    display: grid;
+    gap: 5px;
+  }
+
+  .menu-btn i {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: var(--ink);
+    border-radius: 99px;
+  }
+
+  .nav {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    padding-bottom: 12px;
+  }
+
+  .nav.open {
+    display: flex;
+  }
 }
 </style>

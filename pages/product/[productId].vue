@@ -102,8 +102,19 @@ onMounted(() => {
     { threshold: 0.2 },
   )
   if (formEl.value) observer.observe(formEl.value)
+
+  const flush = () => flushForm()
+  window.addEventListener('pagehide', flush)
+  const onHide = () => {
+    if (document.visibilityState === 'hidden') flush()
+  }
+  document.addEventListener('visibilitychange', onHide)
   
-  onUnmounted(() => observer.disconnect())
+  onUnmounted(() => {
+    observer.disconnect()
+    window.removeEventListener('pagehide', flush)
+    document.removeEventListener('visibilitychange', onHide)
+  })
 })
 
 // SEO
@@ -193,6 +204,62 @@ function goToForm() {
 }
 
 // Track checkout interactions
+const lastKnown = reactive({
+  customerName: '',
+  primaryPhone: '',
+  alternativePhone: '',
+  deliveryAddress: '',
+  city: '',
+  deliveryDate: '',
+})
+const fieldTimers: Record<string, ReturnType<typeof setTimeout> | undefined> = {}
+const clearedSent: Record<string, boolean> = {}
+
+function formSnapshot() {
+  return { ...lastKnown }
+}
+
+function rememberField(field: keyof typeof lastKnown, raw: string, keepalive = false) {
+  if (!product.value || isPreview.value) return
+  const value = raw.trim()
+  const previous = lastKnown[field]
+  if (value) {
+    if (previous === value) return
+    lastKnown[field] = value
+    clearedSent[field] = false
+    track('field_filled', {
+      productId: product.value.productId,
+      metadata: {
+        field,
+        value,
+        cleared: false,
+        snapshot: formSnapshot(),
+      },
+      keepalive,
+    })
+    return
+  }
+  if (previous && !clearedSent[field]) {
+    clearedSent[field] = true
+    track('field_filled', {
+      productId: product.value.productId,
+      metadata: {
+        field,
+        value: '',
+        lastValue: previous,
+        cleared: true,
+        snapshot: formSnapshot(),
+      },
+      keepalive,
+    })
+  }
+}
+
+function queueField(field: keyof typeof lastKnown, raw: string) {
+  clearTimeout(fieldTimers[field])
+  fieldTimers[field] = setTimeout(() => rememberField(field, raw), 700)
+}
+
 function trackCheckoutOpen() {
   if (product.value) {
     track('checkout_open', { productId: product.value.productId })
@@ -201,14 +268,17 @@ function trackCheckoutOpen() {
 
 function trackFormStarted() {
   if (product.value) {
-    track('form_started', { productId: product.value.productId })
+    track('form_started', { productId: product.value.productId, metadata: { snapshot: formSnapshot() } })
   }
 }
 
-function trackFieldFilled(field: string) {
-  if (product.value) {
-    track('field_filled', { productId: product.value.productId, metadata: { field } })
-  }
+function flushForm() {
+  rememberField('customerName', form.customerName, true)
+  rememberField('primaryPhone', form.primaryPhone, true)
+  rememberField('alternativePhone', form.alternativePhone, true)
+  rememberField('deliveryAddress', form.deliveryAddress, true)
+  rememberField('city', form.city, true)
+  rememberField('deliveryDate', form.deliveryDate, true)
 }
 </script>
 
@@ -299,7 +369,8 @@ function trackFieldFilled(field: string) {
               autocomplete="name" 
               required 
               @input.once="trackFormStarted"
-              @blur="trackFieldFilled('customerName')"
+              @input="queueField('customerName', form.customerName)"
+              @blur="rememberField('customerName', form.customerName)"
             />
           </label>
           <label>
@@ -311,7 +382,8 @@ function trackFieldFilled(field: string) {
               inputmode="tel" 
               autocomplete="tel" 
               required 
-              @blur="trackFieldFilled('primaryPhone')"
+              @input="queueField('primaryPhone', form.primaryPhone)"
+              @blur="rememberField('primaryPhone', form.primaryPhone)"
             />
           </label>
           <label>
@@ -320,7 +392,9 @@ function trackFieldFilled(field: string) {
               v-model="form.alternativePhone" 
               name="alternativePhone" 
               type="tel" 
-              inputmode="tel" 
+              inputmode="tel"
+              @input="queueField('alternativePhone', form.alternativePhone)"
+              @blur="rememberField('alternativePhone', form.alternativePhone)"
             />
           </label>
           <label>
@@ -330,7 +404,8 @@ function trackFieldFilled(field: string) {
               name="deliveryAddress" 
               rows="3" 
               required 
-              @blur="trackFieldFilled('deliveryAddress')"
+              @input="queueField('deliveryAddress', form.deliveryAddress)"
+              @blur="rememberField('deliveryAddress', form.deliveryAddress)"
             />
           </label>
           <label>
@@ -340,12 +415,19 @@ function trackFieldFilled(field: string) {
               name="city" 
               autocomplete="address-level2" 
               required 
-              @blur="trackFieldFilled('city')"
+              @input="queueField('city', form.city)"
+              @blur="rememberField('city', form.city)"
             />
           </label>
           <label>
             Preferred delivery date
-            <input v-model="form.deliveryDate" name="deliveryDate" type="date" :min="tomorrowIso()" />
+            <input
+              v-model="form.deliveryDate"
+              name="deliveryDate"
+              type="date"
+              :min="tomorrowIso()"
+              @change="rememberField('deliveryDate', form.deliveryDate)"
+            />
           </label>
 
           <p class="cod">Payment is done on delivery. You pay when the order arrives — not on this page.</p>

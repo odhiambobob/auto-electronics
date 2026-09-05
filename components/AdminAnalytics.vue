@@ -25,11 +25,21 @@ const avgOrderValue = computed(() => {
   return Math.round(totalRevenue.value / totalOrders.value)
 })
 
-// Simple chart visualization using CSS
-const maxRevenue = computed(() => {
-  if (!analytics.value?.dailyEarnings) return 1
-  return Math.max(...analytics.value.dailyEarnings.map(d => d.revenue), 1)
-})
+const chartLabels = computed(() => (analytics.value?.dailyEarnings || []).map((day) => day.date))
+const chartSeries = computed(() => [
+  {
+    id: 'revenue',
+    label: 'Revenue',
+    color: '#1f4ed8',
+    values: (analytics.value?.dailyEarnings || []).map((day) => day.revenue),
+  },
+  {
+    id: 'orders',
+    label: 'Orders',
+    color: '#0f6b4c',
+    values: (analytics.value?.dailyEarnings || []).map((day) => day.orderCount),
+  },
+])
 </script>
 
 <template>
@@ -73,20 +83,11 @@ const maxRevenue = computed(() => {
     <div class="charts-grid">
       <div class="card">
         <h2>Daily Revenue</h2>
-        <div v-if="analytics?.dailyEarnings?.length" class="chart">
-          <div 
-            v-for="day in analytics.dailyEarnings" 
-            :key="day.date" 
-            class="bar-container"
-          >
-            <div 
-              class="bar" 
-              :style="{ height: `${(day.revenue / maxRevenue) * 100}%` }"
-              :title="`${day.date}: ${formatMoney(day.revenue, 'KES')}`"
-            ></div>
-            <span class="bar-label">{{ day.date.slice(-2) }}</span>
-          </div>
-        </div>
+        <AdminLineChart
+          v-if="analytics?.dailyEarnings?.length"
+          :labels="chartLabels"
+          :series="chartSeries"
+        />
         <p v-else class="empty">No data for this period</p>
       </div>
 
@@ -195,36 +196,6 @@ const maxRevenue = computed(() => {
 .card h2 {
   font-size: 16px;
   margin: 0 0 16px;
-}
-
-.chart {
-  display: flex;
-  align-items: flex-end;
-  height: 200px;
-  gap: 4px;
-  padding-bottom: 24px;
-}
-
-.bar-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-}
-
-.bar {
-  width: 100%;
-  background: var(--accent);
-  border-radius: 4px 4px 0 0;
-  min-height: 4px;
-  transition: height 0.3s ease;
-}
-
-.bar-label {
-  font-size: 10px;
-  color: var(--muted);
-  margin-top: 4px;
 }
 
 .empty {

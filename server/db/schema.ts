@@ -65,8 +65,66 @@ export const orderEvents = pgTable('order_events', {
   visitorId: varchar('visitor_id', { length: 100 }).notNull(),
   eventType: eventTypeEnum('event_type').notNull(),
   productId: varchar('product_id', { length: 100 }),
+  path: varchar('path', { length: 255 }),
+  keverdVisitorId: varchar('keverd_visitor_id', { length: 255 }),
+  keverdEventId: varchar('keverd_event_id', { length: 255 }),
   metadata: jsonb('metadata').$type<Record<string, unknown>>(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export type ClearedField = {
+  field: string
+  lastValue: string
+  at: string
+}
+
+export type KeverdDeviceProfile = {
+  country?: string | null
+  countryCode?: string | null
+  pageUrl?: string | null
+  timesSeen?: number | null
+  isNew?: boolean | null
+  firstSeen?: string | null
+  lastSeen?: string | null
+  uniqueIps?: number | null
+  uniqueCountries?: number | null
+  action?: string | null
+  riskScore?: number | null
+  incognito?: boolean | null
+  vpn?: boolean | null
+  proxy?: boolean | null
+  bot?: boolean | null
+  reasons?: string[]
+}
+
+export const visitorSnapshots = pgTable('visitor_snapshots', {
+  id: serial('id').primaryKey(),
+  visitorId: varchar('visitor_id', { length: 100 }).unique().notNull(),
+  keverdVisitorId: varchar('keverd_visitor_id', { length: 255 }),
+  keverdEventId: varchar('keverd_event_id', { length: 255 }),
+  keverdVerifiedAt: timestamp('keverd_verified_at'),
+  keverdCountry: varchar('keverd_country', { length: 100 }),
+  keverdAction: varchar('keverd_action', { length: 50 }),
+  keverdRiskScore: integer('keverd_risk_score'),
+  keverdTimesSeen: integer('keverd_times_seen'),
+  keverdIsNew: boolean('keverd_is_new'),
+  keverdProfile: jsonb('keverd_profile').$type<KeverdDeviceProfile | null>(),
+  lastPath: varchar('last_path', { length: 255 }),
+  lastProductId: varchar('last_product_id', { length: 100 }),
+  lastEventType: varchar('last_event_type', { length: 50 }),
+  lastField: varchar('last_field', { length: 50 }),
+  customerName: varchar('customer_name', { length: 255 }),
+  primaryPhone: varchar('primary_phone', { length: 50 }),
+  alternativePhone: varchar('alternative_phone', { length: 50 }),
+  deliveryAddress: text('delivery_address'),
+  city: varchar('city', { length: 100 }),
+  deliveryDate: varchar('delivery_date', { length: 20 }),
+  touchedFields: jsonb('touched_fields').$type<string[]>().notNull().default([]),
+  clearedFields: jsonb('cleared_fields').$type<ClearedField[]>().notNull().default([]),
+  converted: boolean('converted').notNull().default(false),
+  eventCount: integer('event_count').notNull().default(0),
+  firstSeenAt: timestamp('first_seen_at').notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
 })
 
 // Admin users
@@ -101,6 +159,8 @@ export type Order = typeof orders.$inferSelect
 export type NewOrder = typeof orders.$inferInsert
 export type OrderEvent = typeof orderEvents.$inferSelect
 export type NewOrderEvent = typeof orderEvents.$inferInsert
+export type VisitorSnapshot = typeof visitorSnapshots.$inferSelect
+export type NewVisitorSnapshot = typeof visitorSnapshots.$inferInsert
 export type Admin = typeof admins.$inferSelect
 export type NewAdmin = typeof admins.$inferInsert
 export type AdminSession = typeof adminSessions.$inferSelect

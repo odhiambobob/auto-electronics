@@ -17,6 +17,8 @@ declare global {
 
 export function useTracking() {
   const config = useRuntimeConfig()
+  const route = useRoute()
+  const keverdLast = useState<{ eventId?: string; visitorId?: string } | null>('keverdLast', () => null)
   
   function getVisitorId(): string {
     if (import.meta.server) return ''
@@ -29,18 +31,45 @@ export function useTracking() {
     return visitorId
   }
 
-  async function track(eventType: EventType, data?: { productId?: string; metadata?: Record<string, unknown> }) {
+  async function track(
+    eventType: EventType,
+    data?: { productId?: string; metadata?: Record<string, unknown>; keepalive?: boolean },
+  ) {
     if (import.meta.server) return
-    
+
+    const body = {
+      visitorId: getVisitorId(),
+      eventType,
+      productId: data?.productId,
+      path: route.path,
+      keverdEventId: keverdLast.value?.eventId,
+      keverdVisitorId: keverdLast.value?.visitorId,
+      metadata: {
+        path: route.path,
+        ...data?.metadata,
+      },
+    }
+
     try {
+      if (data?.keepalive && typeof navigator !== 'undefined') {
+        const payload = JSON.stringify(body)
+        const sent = navigator.sendBeacon?.(
+          '/api/tracking',
+          new Blob([payload], { type: 'application/json' }),
+        )
+        if (sent) return
+        await fetch('/api/tracking', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          keepalive: true,
+        })
+        return
+      }
+
       await $fetch('/api/tracking', {
         method: 'POST',
-        body: {
-          visitorId: getVisitorId(),
-          eventType,
-          productId: data?.productId,
-          metadata: data?.metadata,
-        },
+        body,
       })
     } catch {
       // Silently fail tracking

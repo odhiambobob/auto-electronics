@@ -12,7 +12,6 @@ const saving = ref(false)
 const error = ref('')
 const success = ref('')
 const uploading = ref(false)
-const showPreview = ref(false)
 const duplicating = ref(false)
 const deleting = ref(false)
 const showDeleteConfirm = ref(false)
@@ -289,50 +288,13 @@ const previewSrc = computed(() => {
   if (!props.productId) return ''
   return `/product/${encodeURIComponent(props.productId)}?preview=1`
 })
+
+const previewWide = ref(false)
 </script>
 
 <template>
-  <div v-if="product" class="product-form">
-    <!-- Preview Modal -->
-    <div v-if="showPreview" class="preview-overlay">
-      <div class="preview-modal">
-        <div class="preview-header">
-          <h2>Device Preview</h2>
-          <button class="close-btn" @click="showPreview = false">&times;</button>
-        </div>
-        
-        <p class="preview-intro">Preview how your product looks on different devices:</p>
-        
-        <div class="device-previews">
-          <div class="device desktop">
-            <div class="device-label">Desktop</div>
-            <div class="device-frame">
-              <iframe v-if="previewSrc" :src="previewSrc" title="Desktop preview" />
-            </div>
-          </div>
-          
-          <div class="device tablet">
-            <div class="device-label">Tablet</div>
-            <div class="device-frame">
-              <iframe v-if="previewSrc" :src="previewSrc" title="Tablet preview" />
-            </div>
-          </div>
-          
-          <div class="device mobile">
-            <div class="device-label">Mobile</div>
-            <div class="device-frame">
-              <iframe v-if="previewSrc" :src="previewSrc" title="Mobile preview" />
-            </div>
-          </div>
-        </div>
-        
-        <div class="preview-actions">
-          <button class="btn ghost" @click="showPreview = false">Close</button>
-          <button class="btn primary" @click="viewOnStore">Open in New Tab</button>
-        </div>
-      </div>
-    </div>
-
+  <div v-if="product" class="editor-shell" :class="{ wide: previewWide }">
+    <div class="product-form">
     <div class="admin-header">
       <div>
         <NuxtLink :to="`/a/${adminPath}/products`" class="back-link">&larr; All Products</NuxtLink>
@@ -343,7 +305,7 @@ const previewSrc = computed(() => {
         <button class="btn ghost" :disabled="duplicating" @click="duplicateProduct">
           {{ duplicating ? 'Duplicating...' : 'Duplicate' }}
         </button>
-        <button class="btn ghost" @click="showPreview = true">Preview</button>
+        <button class="btn ghost" type="button" @click="viewOnStore">Open live page</button>
         <button class="btn danger-outline" @click="showDeleteConfirm = true">Delete</button>
       </div>
     </div>
@@ -560,6 +522,11 @@ const previewSrc = computed(() => {
         </div>
       </div>
     </Teleport>
+    </div>
+
+    <aside class="preview-column">
+      <AdminProductPreview :form="form" :live-src="previewSrc" @expand="previewWide = $event" />
+    </aside>
   </div>
 
   <ErrorState
@@ -575,8 +542,24 @@ const previewSrc = computed(() => {
 </template>
 
 <style scoped>
+.editor-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: 28px;
+  align-items: start;
+}
+
+.editor-shell.wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .product-form {
-  max-width: 1000px;
+  min-width: 0;
+}
+
+.preview-column {
+  position: sticky;
+  top: 24px;
 }
 
 .empty {
@@ -821,123 +804,18 @@ const previewSrc = computed(() => {
   margin-top: 24px;
 }
 
-/* Preview Modal */
-.preview-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.preview-modal {
-  background: var(--bg);
-  border-radius: 20px;
-  width: 100%;
-  max-width: 1400px;
-  max-height: 90vh;
-  overflow-y: auto;
-  padding: 32px;
-}
-
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.preview-header h2 {
-  margin: 0;
-}
-
-.close-btn {
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: var(--chip);
-  border-radius: 50%;
-  font-size: 24px;
-  cursor: pointer;
-}
-
-.preview-intro {
-  color: var(--text);
-  margin-bottom: 24px;
-}
-
-.device-previews {
-  display: grid;
-  grid-template-columns: 1.2fr 0.5fr 0.3fr;
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-.device {
-  display: flex;
-  flex-direction: column;
-}
-
-.device-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-.device-frame {
-  background: var(--ink);
-  border-radius: 16px;
-  padding: 8px;
-  overflow: hidden;
-}
-
-.device-frame iframe {
-  width: 100%;
-  border: none;
-  border-radius: 8px;
-  background: white;
-}
-
-.device.desktop .device-frame iframe {
-  height: 500px;
-}
-
-.device.tablet .device-frame iframe {
-  height: 600px;
-}
-
-.device.mobile .device-frame iframe {
-  height: 700px;
-}
-
-.preview-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-@media (max-width: 1200px) {
-  .device-previews {
-    grid-template-columns: 1fr 1fr;
+@media (max-width: 1280px) {
+  .editor-shell {
+    grid-template-columns: 1fr;
   }
-  
-  .device.desktop {
-    grid-column: 1 / -1;
+
+  .preview-column {
+    position: static;
   }
 }
 
 @media (max-width: 768px) {
   .form-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .device-previews {
     grid-template-columns: 1fr;
   }
   

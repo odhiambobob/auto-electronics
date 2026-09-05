@@ -5,8 +5,9 @@ const adminPath = useState<string>('adminPath')
 const saving = ref(false)
 const error = ref('')
 const uploading = ref(false)
-const showPreview = ref(false)
-const createdProduct = ref<any>(null)
+const createdProduct = ref<{ productId: string } | null>(null)
+const created = ref(false)
+const previewWide = ref(false)
 const { getErrorMessage } = useApiError()
 
 const form = reactive({
@@ -179,7 +180,7 @@ async function createProduct() {
       },
     })
     createdProduct.value = product
-    showPreview.value = true
+    created.value = true
   } catch (err: unknown) {
     error.value = getErrorMessage(err, 'Failed to create product')
   } finally {
@@ -192,7 +193,9 @@ function goToProducts() {
 }
 
 function viewOnStore() {
-  window.open(`/product/${createdProduct.value.productId}`, '_blank')
+  const id = createdProduct.value?.productId
+  if (!id) return
+  window.open(`/product/${id}`, '_blank')
 }
 
 const previewSrc = computed(() => {
@@ -203,53 +206,21 @@ const previewSrc = computed(() => {
 </script>
 
 <template>
-  <div class="product-form">
-    <!-- Preview Modal -->
-    <div v-if="showPreview" class="preview-overlay">
-      <div class="preview-modal">
-        <div class="preview-header">
-          <h2>Product Created Successfully!</h2>
-          <button class="close-btn" @click="goToProducts">&times;</button>
-        </div>
-        
-        <p class="preview-intro">Preview how your product will look on different devices:</p>
-        
-        <div class="device-previews">
-          <div class="device desktop">
-            <div class="device-label">Desktop</div>
-            <div class="device-frame">
-              <iframe v-if="previewSrc" :src="previewSrc" title="Desktop preview" />
-            </div>
-          </div>
-          
-          <div class="device tablet">
-            <div class="device-label">Tablet</div>
-            <div class="device-frame">
-              <iframe v-if="previewSrc" :src="previewSrc" title="Tablet preview" />
-            </div>
-          </div>
-          
-          <div class="device mobile">
-            <div class="device-label">Mobile</div>
-            <div class="device-frame">
-              <iframe v-if="previewSrc" :src="previewSrc" title="Mobile preview" />
-            </div>
-          </div>
-        </div>
-        
-        <div class="preview-actions">
-          <button class="btn ghost" @click="goToProducts">Back to Products</button>
-          <button class="btn primary" @click="viewOnStore">View on Store</button>
-        </div>
-      </div>
-    </div>
-
+  <div class="editor-shell" :class="{ wide: previewWide }">
+    <div class="product-form">
     <div class="admin-header">
       <div>
         <NuxtLink :to="`/a/${adminPath}/products`" class="back-link">&larr; All Products</NuxtLink>
         <h1>New Product</h1>
       </div>
     </div>
+
+    <p v-if="created" class="success-banner">
+      Product created.
+      <button type="button" class="linkish" @click="viewOnStore">Open live page</button>
+      or
+      <button type="button" class="linkish" @click="goToProducts">back to products</button>.
+    </p>
 
     <form @submit.prevent="createProduct">
       <div class="form-grid">
@@ -441,12 +412,52 @@ const previewSrc = computed(() => {
         </button>
       </div>
     </form>
+    </div>
+
+    <aside class="preview-column">
+      <AdminProductPreview :form="form" :live-src="previewSrc" @expand="previewWide = $event" />
+    </aside>
   </div>
 </template>
 
 <style scoped>
+.editor-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: 28px;
+  align-items: start;
+}
+
+.editor-shell.wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .product-form {
-  max-width: 1000px;
+  min-width: 0;
+}
+
+.preview-column {
+  position: sticky;
+  top: 24px;
+}
+
+.success-banner {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .back-link {
@@ -663,124 +674,18 @@ const previewSrc = computed(() => {
   margin-top: 24px;
 }
 
-/* Preview Modal */
-.preview-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.preview-modal {
-  background: var(--bg);
-  border-radius: 20px;
-  width: 100%;
-  max-width: 1400px;
-  max-height: 90vh;
-  overflow-y: auto;
-  padding: 32px;
-}
-
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.preview-header h2 {
-  margin: 0;
-  color: var(--good);
-}
-
-.close-btn {
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: var(--chip);
-  border-radius: 50%;
-  font-size: 24px;
-  cursor: pointer;
-}
-
-.preview-intro {
-  color: var(--text);
-  margin-bottom: 24px;
-}
-
-.device-previews {
-  display: grid;
-  grid-template-columns: 1.2fr 0.5fr 0.3fr;
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-.device {
-  display: flex;
-  flex-direction: column;
-}
-
-.device-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-.device-frame {
-  background: var(--ink);
-  border-radius: 16px;
-  padding: 8px;
-  overflow: hidden;
-}
-
-.device-frame iframe {
-  width: 100%;
-  border: none;
-  border-radius: 8px;
-  background: white;
-}
-
-.device.desktop .device-frame iframe {
-  height: 500px;
-}
-
-.device.tablet .device-frame iframe {
-  height: 600px;
-}
-
-.device.mobile .device-frame iframe {
-  height: 700px;
-}
-
-.preview-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-@media (max-width: 1200px) {
-  .device-previews {
-    grid-template-columns: 1fr 1fr;
+@media (max-width: 1280px) {
+  .editor-shell {
+    grid-template-columns: 1fr;
   }
-  
-  .device.desktop {
-    grid-column: 1 / -1;
+
+  .preview-column {
+    position: static;
   }
 }
 
 @media (max-width: 768px) {
   .form-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .device-previews {
     grid-template-columns: 1fr;
   }
   

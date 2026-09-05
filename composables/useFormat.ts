@@ -35,6 +35,20 @@ export function useFormat() {
     }).format(date)
   }
 
+  function formatRelativeTime(iso: string | Date): string {
+    const date = typeof iso === 'string' ? new Date(iso) : iso
+    const delta = Date.now() - date.getTime()
+    if (Number.isNaN(delta)) return '—'
+    const minutes = Math.round(delta / 60000)
+    if (minutes < 1) return 'just now'
+    if (minutes < 60) return `${minutes} min ago`
+    const hours = Math.round(minutes / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.round(hours / 24)
+    if (days < 14) return `${days}d ago`
+    return formatDate(date)
+  }
+
   function isoDateOnly(offsetDays: number): string {
     const date = new Date()
     date.setDate(date.getDate() + offsetDays)
@@ -63,6 +77,7 @@ export function useFormat() {
     formatCount,
     formatOrderTime,
     formatDate,
+    formatRelativeTime,
     isoDateOnly,
     tomorrowIso,
     defaultDeliveryIso,
