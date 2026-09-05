@@ -1,101 +1,185 @@
 <script setup lang="ts">
-const { formatMoney, formatDate } = useFormat()
+const { formatMoney, formatMoneyList, formatRelativeTime, formatCount, formatPercent, orderStatusLabel } = useFormat()
 const adminPath = useState<string>('adminPath')
+const { getErrorMessage } = useApiError()
+const { getCountryFlag, getCountryCurrency } = useCountries()
 
-// Filters
 const orderStatusFilter = ref('')
 const countryFilter = ref('')
 const periodFilter = ref('30')
 
-// Fetch dashboard stats
-const { data: ordersData, error: ordersError } = await useFetch('/api/orders', { query: { limit: 100 } })
-const { data: analytics, error: analyticsError } = await useFetch('/api/analytics/overview')
-const { data: earnings, error: earningsError, refresh: refreshEarnings } = await useFetch('/api/analytics/earnings', { 
-  query: computed(() => ({ days: parseInt(periodFilter.value) }))
+const { data: ordersData, error: ordersError } = await useFetch('/api/orders', {
+  query: { limit: 100 },
+})
+const { data: report, error: earningsError } = await useFetch('/api/analytics/earnings', {
+  query: { days: periodFilter },
+  watch: [periodFilter],
 })
 const { data: products, error: productsError } = await useFetch('/api/admin/products')
-const { getErrorMessage } = useApiError()
-const { getCountryFlag, getCountryCurrency } = useCountries()
+const dashboardError = computed(() => ordersError.value || earningsError.value || productsError.value)
 
-const dashboardError = computed(() => ordersError.value || analyticsError.value || earningsError.value || productsError.value)
+const totals = computed(() => report.value?.totals || {
+  orders: 0,
+  booked: 0,
+  pending: 0,
+  inTransit: 0,
+  delivered: 0,
+  cancelled: 0,
+  todayOrders: 0,
+  cancelRate: 0,
+  deliveryRate: 0,
+  bookedKes: 0,
+  collectedKes: 0,
+  pendingKes: 0,
+  deliveryKes: 0,
+  adsKes: 0,
+  netKes: 0,
+})
 
-// Watch period filter changes
-watch(periodFilter, () => refreshEarnings())
-
-const stats = computed(() => {
-  if (!analytics.value) {
-    return {
-      totalOrders: 0,
-      totalRevenue: 0,
-      pendingOrders: 0,
-      todayOrders: 0,
-    }
-  }
-  return analytics.value
+const conversion = computed(() => report.value?.conversion || {
+  visitors: 0,
+  formStarted: 0,
+  orders: 0,
+  formRate: 0,
+  orderRate: 0,
 })
 
 const allOrders = computed(() => ordersData.value?.orders || [])
 
-// Filter orders
 const filteredOrders = computed(() => {
-  let result = allOrders.value as any[]
-  
+  let result = allOrders.value
   if (orderStatusFilter.value) {
-    result = result.filter(o => o.status === orderStatusFilter.value)
+    result = result.filter((order) => order.status === orderStatusFilter.value)
   }
-  
   if (countryFilter.value) {
-    result = result.filter(o => o.productCountry === countryFilter.value)
+    result = result.filter((order) => (order.productCountry || 'Kenya') === countryFilter.value)
   }
-  
-  return result.slice(0, 10) // Show max 10 in dashboard
+  return result.slice(0, 10)
 })
 
-const revenueByCountry = computed(() => earnings.value?.revenueByCountry || [])
-
-// Products by country with currency info
 const productsByCountry = computed(() => {
-  if (!products.value) return []
   const countMap = new Map<string, { total: number; active: number; currency: string }>()
-  
-  for (const p of products.value as any[]) {
-    const country = p.country || 'Kenya'
+  for (const product of (products.value || []) as { country?: string; isActive?: boolean }[]) {
+    const country = product.country || 'Kenya'
     const current = countMap.get(country) || { total: 0, active: 0, currency: getCountryCurrency(country) }
     current.total++
-    if (p.isActive) current.active++
+    if (product.isActive) current.active++
     countMap.set(country, current)
   }
-  
-  return Array.from(countMap.entries())
-    .map(([country, data]) => ({ country, ...data }))
-    .sort((a, b) => b.total - a.total)
+  return countMap
 })
 
-// Merge products and revenue by country
+function marketName(value?: string | null) {
+  const country = (value || '').trim()
+  return !country || country === 'Unknown' ? 'Kenya' : country
+}
+
 const countrySummary = computed(() => {
-  const revenueMap = new Map(revenueByCountry.value.map(r => [r.country, r]))
-  
-  return productsByCountry.value.map(p => {
-    const revenue = revenueMap.get(p.country)
-    return {
-      ...p,
-      revenue: revenue?.revenue || 0,
-      orderCount: revenue?.orderCount || 0,
+  const rows = new Map<string, {
+    country: string
+    currency: string
+    total: number
+    active: number
+    orders: number
+    pending: number
+    booked: number
+    collected: number
+    bookedKes: number
+    collectedKes: number
+  }>()
+
+  function rowFor(country: string, currency?: string) {
+    const current = rows.get(country) || {
+      country,
+      currency: currency || getCountryCurrency(country),
+      total: 0,
+      active: 0,
+      orders: 0,
+      pending: 0,
+      booked: 0,
+      collected: 0,
+      bookedKes: 0,
+      collectedKes: 0,
     }
-  })
+    if (currency) current.currency = currency
+    rows.set(country, current)
+    return current
+  }
+
+  for (const [country, data] of productsByCountry.value.entries()) {
+    const current = rowFor(marketName(country), data.currency)
+    current.total += data.total
+    current.active += data.active
+  }
+
+  for (const item of report.value?.revenueByCountry || []) {
+    const current = rowFor(marketName(item.country), item.currency)
+    current.orders += Number(item.orders || item.orderCount || 0)
+    current.pending += Number(item.pending || 0)
+    current.booked += Number(item.booked || 0)
+    current.collected += Number(item.collected || 0)
+    current.bookedKes += Number(item.bookedKes || 0)
+    current.collectedKes += Number(item.collectedKes || 0)
+  }
+
+  const cutoff = periodFilter.value === 'all'
+    ? 0
+    : Date.now() - Number(periodFilter.value) * 24 * 60 * 60 * 1000
+
+  const local = new Map<string, { orders: number; pending: number; booked: number; collected: number; currency: string }>()
+  for (const order of allOrders.value) {
+    const when = new Date(order.orderDate).getTime()
+    if (cutoff && Number.isFinite(when) && when < cutoff) continue
+    const country = marketName(order.productCountry)
+    const current = local.get(country) || { orders: 0, pending: 0, booked: 0, collected: 0, currency: order.currency }
+    current.orders += 1
+    if (order.status === 'pending') current.pending += 1
+    if (order.status !== 'cancelled') current.booked += Number(order.totalPrice || 0)
+    if (order.status === 'delivered') current.collected += Number(order.totalPrice || 0)
+    local.set(country, current)
+  }
+
+  function applyLocal(statsByCountry: typeof local) {
+    for (const [country, stats] of statsByCountry.entries()) {
+      const current = rowFor(country, stats.currency)
+      if (current.orders < stats.orders) {
+        current.orders = stats.orders
+        current.pending = stats.pending
+        if (!current.booked) current.booked = stats.booked
+        if (!current.collected) current.collected = stats.collected
+      }
+    }
+  }
+
+  applyLocal(local)
+
+  const counted = [...rows.values()].reduce((sum, row) => sum + row.orders, 0)
+  if (counted === 0 && allOrders.value.length) {
+    const allVisible = new Map<string, { orders: number; pending: number; booked: number; collected: number; currency: string }>()
+    for (const order of allOrders.value) {
+      const country = marketName(order.productCountry)
+      const current = allVisible.get(country) || { orders: 0, pending: 0, booked: 0, collected: 0, currency: order.currency }
+      current.orders += 1
+      if (order.status === 'pending') current.pending += 1
+      if (order.status !== 'cancelled') current.booked += Number(order.totalPrice || 0)
+      if (order.status === 'delivered') current.collected += Number(order.totalPrice || 0)
+      allVisible.set(country, current)
+    }
+    applyLocal(allVisible)
+  }
+
+  return [...rows.values()].sort((a, b) => b.orders - a.orders || b.total - a.total)
 })
 
-const totalProducts = computed(() => products.value?.length || 0)
-const activeProducts = computed(() => (products.value as any[] || []).filter(p => p.isActive).length)
+const totalProducts = computed(() => (products.value || []).length)
+const activeProducts = computed(() => ((products.value || []) as { isActive?: boolean }[]).filter((product) => product.isActive).length)
 
-// Get unique countries for filter
 const countries = computed(() => {
   const set = new Set<string>()
-  productsByCountry.value.forEach(p => set.add(p.country))
-  return Array.from(set).sort()
+  for (const row of countrySummary.value) set.add(row.country)
+  return [...set].sort()
 })
 
-// Filter options
 const statusOptions = [
   { value: '', label: 'All Statuses' },
   { value: 'pending', label: 'Pending' },
@@ -107,13 +191,14 @@ const statusOptions = [
 
 const countryOptions = computed(() => [
   { value: '', label: 'All Countries' },
-  ...countries.value.map(c => ({ value: c, label: `${getCountryFlag(c)} ${c}` }))
+  ...countries.value.map((country) => ({ value: country, label: `${getCountryFlag(country)} ${country}` })),
 ])
 
 const periodOptions = [
   { value: '7', label: 'Last 7 days' },
   { value: '30', label: 'Last 30 days' },
   { value: '90', label: 'Last 90 days' },
+  { value: 'all', label: 'All time' },
 ]
 </script>
 
@@ -132,52 +217,86 @@ const periodOptions = [
       :message="getErrorMessage(dashboardError)"
     />
 
-    <!-- Stats Overview -->
+    <template v-else>
     <div class="stats-grid">
       <div class="stat-card">
-        <p class="label">Total Orders</p>
-        <p class="value">{{ stats.totalOrders }}</p>
-      </div>
-      <div class="stat-card highlight">
-        <p class="label">Total Revenue</p>
-        <p class="value">{{ formatMoney(stats.totalRevenue, 'KES') }}</p>
+        <p class="label">Orders this period</p>
+        <p class="value">{{ formatCount(totals.orders) }}</p>
+        <p class="sub-stat">{{ formatCount(totals.todayOrders) }} today</p>
       </div>
       <div class="stat-card warning">
-        <p class="label">Pending Orders</p>
-        <p class="value">{{ stats.pendingOrders }}</p>
+        <p class="label">Need a call</p>
+        <p class="value">{{ formatCount(totals.pending) }}</p>
+        <p class="sub-stat">{{ formatMoney(totals.pendingKes, 'KES') }} pending</p>
       </div>
       <div class="stat-card">
-        <p class="label">Today's Orders</p>
-        <p class="value">{{ stats.todayOrders }}</p>
+        <p class="label">In transit</p>
+        <p class="value">{{ formatCount(totals.inTransit) }}</p>
+        <p class="sub-stat">confirmed or shipped</p>
+      </div>
+      <div class="stat-card highlight">
+        <p class="label">Collected</p>
+        <p class="value money">{{ formatMoney(totals.collectedKes, 'KES') }}</p>
+        <p class="sub-stat">{{ formatCount(totals.delivered) }} delivered · {{ formatPercent(totals.deliveryRate) }} of booked</p>
       </div>
       <div class="stat-card">
-        <p class="label">Products</p>
-        <p class="value">{{ totalProducts }}</p>
-        <p class="sub-stat">{{ activeProducts }} active</p>
+        <p class="label">Net after costs</p>
+        <p class="value money">{{ formatMoney(totals.netKes || 0, 'KES') }}</p>
+        <p class="sub-stat">
+          {{ formatMoney(totals.deliveryKes || 0, 'KES') }} delivery · {{ formatMoney(totals.adsKes || 0, 'KES') }} ads
+        </p>
       </div>
       <div class="stat-card">
-        <p class="label">Markets</p>
-        <p class="value">{{ productsByCountry.length }}</p>
-        <p class="sub-stat">countries</p>
+        <p class="label">Booked value</p>
+        <p class="value money">{{ formatMoney(totals.bookedKes, 'KES') }}</p>
+        <p class="sub-stat">{{ formatMoneyList((report?.revenueByCurrency || []).map((row) => ({ amount: row.booked, currency: row.currency }))) }} local</p>
+      </div>
+      <div class="stat-card" :class="{ warning: totals.cancelRate >= 20 }">
+        <p class="label">Cancel rate</p>
+        <p class="value">{{ formatPercent(totals.cancelRate) }}</p>
+        <p class="sub-stat">{{ formatCount(totals.cancelled) }} cancelled</p>
       </div>
     </div>
 
-    <!-- Two Column Layout -->
+    <div class="card conversion">
+      <div class="card-header">
+        <h2>Store conversion</h2>
+        <NuxtLink :to="`/a/${adminPath}/analytics/funnel`" class="view-all">Open dropoff →</NuxtLink>
+      </div>
+      <div class="conversion-row">
+        <div>
+          <strong>{{ formatCount(conversion.visitors) }}</strong>
+          <span>visitors</span>
+        </div>
+        <span class="arrow">→</span>
+        <div>
+          <strong>{{ formatCount(conversion.formStarted) }}</strong>
+          <span>started form · {{ formatPercent(conversion.formRate) }}</span>
+        </div>
+        <span class="arrow">→</span>
+        <div>
+          <strong>{{ formatCount(conversion.orders) }}</strong>
+          <span>orders · {{ formatPercent(conversion.orderRate) }} of visitors</span>
+        </div>
+      </div>
+    </div>
+
     <div class="dashboard-grid">
-      <!-- Country Summary Table -->
       <div class="card">
         <div class="card-header">
-          <h2>Country Performance</h2>
+          <h2>Country performance</h2>
           <NuxtLink :to="`/a/${adminPath}/analytics`" class="view-all">Full analytics →</NuxtLink>
         </div>
-        
+
         <table v-if="countrySummary.length" class="data-table compact">
           <thead>
             <tr>
               <th>Country</th>
               <th class="text-right">Products</th>
               <th class="text-right">Orders</th>
-              <th class="text-right">Revenue</th>
+              <th class="text-right">Pending</th>
+              <th class="text-right">Booked</th>
+              <th class="text-right">Collected</th>
             </tr>
           </thead>
           <tbody>
@@ -194,9 +313,15 @@ const periodOptions = [
                   <span class="active-badge" :class="{ dim: item.active === 0 }">{{ item.active }} active</span>
                 </span>
               </td>
-              <td class="text-right">{{ item.orderCount }}</td>
+              <td class="text-right">{{ item.orders }}</td>
+              <td class="text-right">{{ item.pending }}</td>
               <td class="text-right">
-                <strong>{{ formatMoney(item.revenue, item.currency) }}</strong>
+                <strong>{{ formatMoney(item.bookedKes, 'KES') }}</strong>
+                <div v-if="item.currency !== 'KES'" class="local-amount">{{ formatMoney(item.booked, item.currency) }}</div>
+              </td>
+              <td class="text-right">
+                {{ formatMoney(item.collectedKes, 'KES') }}
+                <div v-if="item.currency !== 'KES'" class="local-amount">{{ formatMoney(item.collected, item.currency) }}</div>
               </td>
             </tr>
           </tbody>
@@ -204,63 +329,63 @@ const periodOptions = [
             <tr>
               <td><strong>Total</strong></td>
               <td class="text-right"><strong>{{ totalProducts }}</strong></td>
-              <td class="text-right"><strong>{{ countrySummary.reduce((s, c) => s + c.orderCount, 0) }}</strong></td>
-              <td class="text-right">—</td>
+              <td class="text-right"><strong>{{ countrySummary.reduce((sum, row) => sum + row.orders, 0) }}</strong></td>
+              <td class="text-right"><strong>{{ countrySummary.reduce((sum, row) => sum + row.pending, 0) }}</strong></td>
+              <td class="text-right"><strong>{{ formatMoney(countrySummary.reduce((sum, row) => sum + row.bookedKes, 0), 'KES') }}</strong></td>
+              <td class="text-right"><strong>{{ formatMoney(countrySummary.reduce((sum, row) => sum + row.collectedKes, 0), 'KES') }}</strong></td>
             </tr>
           </tfoot>
         </table>
-        <p v-else class="empty">No products yet. <NuxtLink :to="`/a/${adminPath}/products/new`">Add your first product</NuxtLink></p>
+        <p v-else class="empty">No products or orders yet. <NuxtLink :to="`/a/${adminPath}/products/new`">Add your first product</NuxtLink></p>
+        <p v-if="report?.fx?.note" class="fx-note">{{ report.fx.note }}</p>
       </div>
 
-      <!-- Quick Actions -->
       <div class="card quick-actions">
         <div class="card-header">
-          <h2>Quick Actions</h2>
+          <h2>Quick actions</h2>
         </div>
+        <p class="markets">{{ countrySummary.length }} markets · {{ activeProducts }} active products</p>
         <div class="actions-grid">
-          <NuxtLink :to="`/a/${adminPath}/products/new`" class="action-btn">
-            <span class="action-icon">➕</span>
-            <span>New Product</span>
-          </NuxtLink>
           <NuxtLink :to="`/a/${adminPath}/orders`" class="action-btn">
-            <span class="action-icon">📦</span>
-            <span>View Orders</span>
+            <span>Pending orders</span>
+            <strong>{{ formatCount(totals.pending) }}</strong>
           </NuxtLink>
-          <NuxtLink :to="`/a/${adminPath}/analytics`" class="action-btn">
-            <span class="action-icon">📊</span>
-            <span>Analytics</span>
+          <NuxtLink :to="`/a/${adminPath}/analytics/funnel`" class="action-btn">
+            <span>Dropoff / reach-out</span>
+            <strong>Open</strong>
           </NuxtLink>
-          <NuxtLink :to="`/a/${adminPath}/settings`" class="action-btn">
-            <span class="action-icon">⚙️</span>
-            <span>Settings</span>
+          <NuxtLink :to="`/a/${adminPath}/products/new`" class="action-btn">
+            <span>New product</span>
+            <strong>+</strong>
+          </NuxtLink>
+          <NuxtLink :to="`/a/${adminPath}/costs`" class="action-btn">
+            <span>Costs / ads</span>
+            <strong>→</strong>
           </NuxtLink>
         </div>
       </div>
     </div>
 
-    <!-- Recent Orders with Filters -->
     <div class="card">
       <div class="card-header">
-        <h2>Recent Orders</h2>
+        <h2>Recent orders</h2>
         <NuxtLink :to="`/a/${adminPath}/orders`" class="view-all">View all →</NuxtLink>
       </div>
-      
+
       <div class="table-filters">
         <CustomSelect v-model="orderStatusFilter" :options="statusOptions" placeholder="All Statuses" />
         <CustomSelect v-model="countryFilter" :options="countryOptions" placeholder="All Countries" />
-        <span class="filter-result">{{ filteredOrders.length }} orders</span>
+        <span class="filter-result">{{ filteredOrders.length }} shown</span>
       </div>
 
       <table v-if="filteredOrders.length" class="data-table">
         <thead>
           <tr>
-            <th>Order ID</th>
+            <th>Order</th>
             <th>Customer</th>
             <th>Product</th>
-            <th>Country</th>
             <th class="text-right">Total</th>
             <th>Status</th>
-            <th>Date</th>
           </tr>
         </thead>
         <tbody>
@@ -269,26 +394,26 @@ const periodOptions = [
               <NuxtLink :to="`/a/${adminPath}/orders/${order.orderId}`" class="order-link">
                 {{ order.orderId }}
               </NuxtLink>
+              <div class="date-cell">{{ formatRelativeTime(order.orderDate) }}</div>
             </td>
-            <td>{{ order.customerName }}</td>
-            <td class="product-cell">{{ order.package }} {{ order.productName }}</td>
             <td>
-              <span class="country-badge">
-                {{ getCountryFlag(order.productCountry || 'Kenya') }}
-                {{ order.productCountry || 'Kenya' }}
-              </span>
+              <strong>{{ order.customerName }}</strong>
+              <div class="date-cell">
+                {{ order.city }} · {{ getCountryFlag(order.productCountry || 'Kenya') }} {{ order.productCountry || 'Kenya' }}
+              </div>
             </td>
+            <td class="product-cell">{{ order.quantity > 1 ? `${order.quantity} × ` : '' }}{{ order.package }} {{ order.productName }}</td>
             <td class="text-right"><strong>{{ formatMoney(order.totalPrice, order.currency) }}</strong></td>
             <td>
-              <span :class="['status-badge', order.status]">{{ order.status }}</span>
+              <span :class="['status-badge', order.status]">{{ orderStatusLabel(order.status) }}</span>
             </td>
-            <td class="date-cell">{{ formatDate(order.orderDate) }}</td>
           </tr>
         </tbody>
       </table>
 
       <p v-else class="empty">No orders match your filters.</p>
     </div>
+    </template>
   </div>
 </template>
 
@@ -333,10 +458,9 @@ const periodOptions = [
   text-decoration: underline;
 }
 
-/* Stats Grid */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -354,7 +478,8 @@ const periodOptions = [
   color: white;
 }
 
-.stat-card.highlight .label {
+.stat-card.highlight .label,
+.stat-card.highlight .sub-stat {
   color: rgba(255,255,255,0.8);
 }
 
@@ -378,13 +503,44 @@ const periodOptions = [
   margin: 0;
 }
 
+.stat-card .value.money {
+  font-size: 20px;
+  line-height: 1.25;
+}
+
 .sub-stat {
   font-size: 12px;
   color: var(--muted);
   margin: 4px 0 0;
 }
 
-/* Dashboard Grid */
+.conversion {
+  margin-bottom: 24px;
+}
+
+.conversion-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.conversion-row strong {
+  display: block;
+  font-size: 24px;
+  color: var(--ink);
+}
+
+.conversion-row span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.arrow {
+  color: var(--line);
+  font-size: 20px;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -392,7 +548,6 @@ const periodOptions = [
   margin-bottom: 24px;
 }
 
-/* Tables */
 .data-table.compact {
   font-size: 13px;
 }
@@ -438,9 +593,10 @@ const periodOptions = [
   background: var(--chip);
 }
 
-/* Quick Actions */
-.quick-actions {
-  height: fit-content;
+.markets {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .actions-grid {
@@ -452,28 +608,19 @@ const periodOptions = [
 .action-btn {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 20px 16px;
+  gap: 6px;
+  padding: 16px;
   background: var(--chip);
   border-radius: 12px;
   text-decoration: none;
   color: var(--ink);
   font-size: 13px;
-  font-weight: 500;
-  transition: background-color 0.15s, transform 0.15s;
 }
 
-.action-btn:hover {
-  background: var(--line);
-  transform: translateY(-2px);
+.action-btn strong {
+  font-size: 20px;
 }
 
-.action-icon {
-  font-size: 24px;
-}
-
-/* Table Filters */
 .table-filters {
   display: flex;
   gap: 12px;
@@ -490,16 +637,11 @@ const periodOptions = [
   color: var(--muted);
 }
 
-/* Order Table Cells */
 .order-link {
   font-family: monospace;
   font-size: 12px;
   color: var(--accent);
   text-decoration: none;
-}
-
-.order-link:hover {
-  text-decoration: underline;
 }
 
 .product-cell {
@@ -535,15 +677,26 @@ const periodOptions = [
   color: var(--accent);
 }
 
+.local-amount,
+.fx-note {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.fx-note {
+  margin: 12px 0 0;
+}
+
 @media (max-width: 900px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .table-filters {
     flex-wrap: wrap;
   }
@@ -553,7 +706,7 @@ const periodOptions = [
   .stats-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .actions-grid {
     grid-template-columns: 1fr;
   }

@@ -40,6 +40,7 @@ export interface Order {
   quantity: number
   totalPrice: number
   currency: string
+  deliveryCost: number | null
   orderDate: Date
   status: OrderStatus
   deliveryDate: string
@@ -92,6 +93,16 @@ export interface SiteSetting {
   key: string
   value: unknown
   updatedAt: Date
+}
+
+export interface AdSpend {
+  id: number
+  productId: string
+  amount: number
+  currency: string
+  spentOn: string
+  note: string | null
+  createdAt: Date
 }
 
 export interface CreateOrderInput {

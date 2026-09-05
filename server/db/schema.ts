@@ -44,6 +44,7 @@ export const orders = pgTable('orders', {
   quantity: integer('quantity').notNull(),
   totalPrice: integer('total_price').notNull(),
   currency: varchar('currency', { length: 10 }).notNull().default('KES'),
+  deliveryCost: integer('delivery_cost'),
   orderDate: timestamp('order_date').notNull().defaultNow(),
   deliveryDate: date('delivery_date').notNull(),
   status: orderStatusEnum('status').notNull().default('pending'),
@@ -152,6 +153,17 @@ export const siteSettings = pgTable('site_settings', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// Admin-only ad spend per product. Never shown on the storefront.
+export const adSpends = pgTable('ad_spends', {
+  id: serial('id').primaryKey(),
+  productId: varchar('product_id', { length: 100 }).notNull(),
+  amount: integer('amount').notNull(),
+  currency: varchar('currency', { length: 10 }).notNull().default('KES'),
+  spentOn: date('spent_on').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // Type exports
 export type Product = typeof products.$inferSelect
 export type NewProduct = typeof products.$inferInsert
@@ -167,3 +179,5 @@ export type AdminSession = typeof adminSessions.$inferSelect
 export type NewAdminSession = typeof adminSessions.$inferInsert
 export type SiteSetting = typeof siteSettings.$inferSelect
 export type NewSiteSetting = typeof siteSettings.$inferInsert
+export type AdSpend = typeof adSpends.$inferSelect
+export type NewAdSpend = typeof adSpends.$inferInsert

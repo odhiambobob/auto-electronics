@@ -15,6 +15,29 @@ export function useFormat() {
     return new Intl.NumberFormat(undefined).format(value)
   }
 
+  function formatMoneyList(rows: { amount: number; currency: string }[], empty = '—'): string {
+    const parts = rows
+      .filter((row) => row.currency && Number(row.amount))
+      .map((row) => formatMoney(row.amount, row.currency))
+    return parts.length ? parts.join(' · ') : empty
+  }
+
+  function formatPercent(value: number): string {
+    return `${Math.round(value)}%`
+  }
+
+  const statusLabels: Record<string, string> = {
+    pending: 'Need a call',
+    confirmed: 'Confirmed',
+    shipped: 'On the way',
+    delivered: 'Delivered',
+    cancelled: 'Cancelled',
+  }
+
+  function orderStatusLabel(status: string) {
+    return statusLabels[status] || status
+  }
+
   function formatOrderTime(iso: string | Date): string {
     const date = typeof iso === 'string' ? new Date(iso) : iso
     return new Intl.DateTimeFormat(undefined, {
@@ -74,7 +97,10 @@ export function useFormat() {
 
   return {
     formatMoney,
+    formatMoneyList,
     formatCount,
+    formatPercent,
+    orderStatusLabel,
     formatOrderTime,
     formatDate,
     formatRelativeTime,

@@ -302,6 +302,9 @@ const previewWide = ref(false)
         <p class="product-id-display">ID: {{ product.productId }}</p>
       </div>
       <div class="header-actions">
+        <NuxtLink :to="`/a/${adminPath}/costs?product=${encodeURIComponent(product.productId)}`" class="btn ghost">
+          Ad spend
+        </NuxtLink>
         <button class="btn ghost" :disabled="duplicating" @click="duplicateProduct">
           {{ duplicating ? 'Duplicating...' : 'Duplicate' }}
         </button>
@@ -590,7 +593,9 @@ const previewWide = ref(false)
 
 .header-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .form-grid {

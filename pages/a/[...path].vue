@@ -61,6 +61,7 @@ const currentPage = computed(() => {
   if (subPath.startsWith('products/')) return 'product-edit'
   if (subPath === 'analytics') return 'analytics'
   if (subPath === 'analytics/funnel') return 'funnel'
+  if (subPath === 'costs') return 'costs'
   if (subPath === 'settings') return 'settings'
   return 'not-found'
 })
@@ -90,6 +91,7 @@ const productId = computed(() => {
     <AdminProductEdit v-else-if="currentPage === 'product-edit'" :product-id="productId!" />
     <AdminAnalytics v-else-if="currentPage === 'analytics'" />
     <AdminFunnel v-else-if="currentPage === 'funnel'" />
+    <AdminCosts v-else-if="currentPage === 'costs'" />
     <AdminSettings v-else-if="currentPage === 'settings'" />
     <div v-else class="not-found">
       <h1>Page not found</h1>

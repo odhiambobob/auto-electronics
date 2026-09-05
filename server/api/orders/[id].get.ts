@@ -1,4 +1,5 @@
 import { eq, and, ne, desc } from 'drizzle-orm'
+import { effectiveDeliveryCost, getDeliveryRates, rateForCountry } from '../../utils/costs'
 
 export default defineSafeEventHandler(async (event) => {
   await requireAdmin(event)
@@ -56,8 +57,13 @@ export default defineSafeEventHandler(async (event) => {
       .limit(20)
   }
 
+  const rates = await getDeliveryRates()
+  const countryRate = rateForCountry(rates, order.productCountry)
+
   return {
     ...order,
+    defaultDeliveryCost: countryRate?.amount ?? null,
+    effectiveDeliveryCost: effectiveDeliveryCost(order.deliveryCost, order.productCountry, rates),
     relatedOrders,
   }
 })

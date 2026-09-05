@@ -10,11 +10,13 @@ const updating = ref(false)
 const updateError = ref('')
 const newStatus = ref('')
 const notes = ref('')
+const deliveryCostInput = ref('')
 
 watch(order, (o) => {
   if (o) {
     newStatus.value = o.status
     notes.value = o.notes || ''
+    deliveryCostInput.value = o.deliveryCost == null ? '' : String(o.deliveryCost)
   }
 }, { immediate: true })
 
@@ -39,6 +41,7 @@ async function updateOrder() {
       body: {
         status: newStatus.value,
         notes: notes.value || null,
+        deliveryCost: deliveryCostInput.value === '' ? null : Number(deliveryCostInput.value),
       },
     })
     await refresh()
@@ -99,8 +102,12 @@ async function updateOrder() {
           <dd>{{ order.package }}</dd>
           <dt>Quantity</dt>
           <dd>{{ order.quantity }}</dd>
-          <dt>Total</dt>
+          <dt>Customer total</dt>
           <dd class="total">{{ formatMoney(order.totalPrice, order.currency) }}</dd>
+          <dt>Delivery cost</dt>
+          <dd>{{ formatMoney(order.effectiveDeliveryCost || 0, order.currency) }}</dd>
+          <dt>After delivery</dt>
+          <dd>{{ formatMoney(order.totalPrice - (order.effectiveDeliveryCost || 0), order.currency) }}</dd>
           <dt>Order Date</dt>
           <dd>{{ formatOrderTime(order.orderDate) }}</dd>
           <dt>Requested Delivery</dt>
@@ -157,6 +164,17 @@ async function updateOrder() {
               <select v-model="newStatus">
                 <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label>Delivery cost ({{ order.currency }})</label>
+              <input
+                v-model="deliveryCostInput"
+                type="number"
+                min="0"
+                step="1"
+                :placeholder="order.defaultDeliveryCost != null ? String(order.defaultDeliveryCost) : 'Country default'"
+              >
+              <p class="field-hint">What the courier charges you. Leave blank to use the country rate from Costs.</p>
             </div>
           </div>
           <div class="form-group">
@@ -306,6 +324,13 @@ async function updateOrder() {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
+}
+
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
 }
 
 a {

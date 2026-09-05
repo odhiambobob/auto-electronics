@@ -5,6 +5,7 @@ const updateOrderSchema = z.object({
   status: z.enum(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']).optional(),
   notes: z.string().nullable().optional(),
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  deliveryCost: z.number().int().min(0).nullable().optional(),
 })
 
 export default defineSafeEventHandler(async (event) => {

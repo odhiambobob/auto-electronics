@@ -1,4 +1,8 @@
-import { desc, eq, and, gte, lte, sql, inArray } from 'drizzle-orm'
+import { desc, eq, and, gte, lte, sql, inArray, or, ilike } from 'drizzle-orm'
+
+function safeLike(value: string) {
+  return `%${value.replace(/[%_]/g, '').trim()}%`
+}
 
 export default defineSafeEventHandler(async (event) => {
   // Require admin authentication
@@ -9,8 +13,10 @@ export default defineSafeEventHandler(async (event) => {
   const startDate = query.startDate as string | undefined
   const endDate = query.endDate as string | undefined
   const city = query.city as string | undefined
+  const country = typeof query.country === 'string' ? query.country.trim() : ''
+  const q = typeof query.q === 'string' ? query.q.replace(/[%_]/g, '').trim() : ''
   const page = parseInt(query.page as string) || 1
-  const limit = Math.min(parseInt(query.limit as string) || 50, 100)
+  const limit = Math.min(parseInt(query.limit as string) || 50, 2000)
   const offset = (page - 1) * limit
 
   const db = useDb()
@@ -31,7 +37,22 @@ export default defineSafeEventHandler(async (event) => {
   }
   
   if (city) {
-    conditions.push(eq(schema.orders.city, city))
+    conditions.push(ilike(schema.orders.city, safeLike(city)))
+  }
+
+  if (country) {
+    conditions.push(eq(schema.orders.productCountry, country))
+  }
+
+  if (q) {
+    const pattern = safeLike(q)
+    conditions.push(or(
+      ilike(schema.orders.orderId, pattern),
+      ilike(schema.orders.customerName, pattern),
+      ilike(schema.orders.primaryPhone, pattern),
+      ilike(schema.orders.productName, pattern),
+      ilike(schema.orders.city, pattern),
+    ))
   }
 
   // Get orders
@@ -67,11 +88,22 @@ export default defineSafeEventHandler(async (event) => {
     }
   }
 
+  const countryRows = await db
+    .select({
+      country: schema.orders.productCountry,
+    })
+    .from(schema.orders)
+    .groupBy(schema.orders.productCountry)
+
   return {
     orders: orderList.map((order) => ({
       ...order,
       keverdOrderCount: order.keverdVisitorId ? repeatCounts.get(order.keverdVisitorId) ?? 1 : 0,
     })),
+    countries: countryRows
+      .map((row) => row.country)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b)),
     pagination: {
       page,
       limit,

@@ -35,6 +35,7 @@ watch(() => route.fullPath, () => {
         <NuxtLink :to="`/a/${adminPath}/orders`">Orders</NuxtLink>
         <NuxtLink :to="`/a/${adminPath}/products`">Products</NuxtLink>
         <NuxtLink :to="`/a/${adminPath}/analytics`">Analytics</NuxtLink>
+        <NuxtLink :to="`/a/${adminPath}/costs`">Costs</NuxtLink>
         <NuxtLink :to="`/a/${adminPath}/settings`">Settings</NuxtLink>
       </nav>
     </aside>

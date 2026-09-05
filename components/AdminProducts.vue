@@ -1,41 +1,65 @@
 <script setup lang="ts">
+import type { Product } from '~/types/store'
+
 const router = useRouter()
-const { formatMoney } = useFormat()
+const { formatMoney, formatCount } = useFormat()
+const { getCountryFlag } = useCountries()
 const adminPath = useState<string>('adminPath')
 
-// Fetch all products (including inactive for admin)
 const { data: products, error: productsError, refresh } = await useFetch('/api/admin/products')
 
+const search = ref('')
+const filterCountry = ref('')
+const filterStatus = ref('')
 const duplicating = ref<string | null>(null)
 const deleting = ref<string | null>(null)
-const filterCountry = ref('')
-const showDeleteConfirm = ref<string | null>(null)
+const showDeleteConfirm = ref<Product | null>(null)
+const openMenu = ref<string | null>(null)
 const actionError = ref('')
 const { getErrorMessage } = useApiError()
 
-// Get unique countries for filtering
 const countries = computed(() => {
   const countrySet = new Set<string>()
-  products.value?.forEach((p: any) => {
-    if (p.country) countrySet.add(p.country)
-  })
-  return Array.from(countrySet).sort()
+  for (const product of products.value || []) {
+    if (product.country) countrySet.add(product.country)
+  }
+  return [...countrySet].sort()
 })
 
-// Options for custom select
 const countryOptions = computed(() => [
-  { value: '', label: 'All Countries' },
-  ...countries.value.map(c => ({ value: c, label: c }))
+  { value: '', label: 'All markets' },
+  ...countries.value.map((country) => ({ value: country, label: `${getCountryFlag(country)} ${country}` })),
 ])
 
-// Filtered products
 const filteredProducts = computed(() => {
-  if (!products.value) return []
-  if (!filterCountry.value) return products.value
-  return products.value.filter((p: any) => p.country === filterCountry.value)
+  const list = (products.value || []) as Product[]
+  const query = search.value.trim().toLowerCase()
+
+  return list.filter((product) => {
+    if (filterCountry.value && (product.country || 'Kenya') !== filterCountry.value) return false
+    if (filterStatus.value === 'live' && !product.isActive) return false
+    if (filterStatus.value === 'hidden' && product.isActive) return false
+    if (!query) return true
+    return [product.productName, product.productId, product.category, product.country]
+      .some((value) => value?.toLowerCase().includes(query))
+  })
 })
 
-async function toggleActive(product: any) {
+const liveCount = computed(() => ((products.value || []) as Product[]).filter((product) => product.isActive).length)
+
+function closeMenu() {
+  openMenu.value = null
+}
+
+function toggleMenu(event: Event, productId: string) {
+  event.stopPropagation()
+  openMenu.value = openMenu.value === productId ? null : productId
+}
+
+onMounted(() => document.addEventListener('click', closeMenu))
+onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
+
+async function toggleActive(product: Product) {
   actionError.value = ''
   try {
     await $fetch(`/api/products/${product.productId}`, {
@@ -44,11 +68,11 @@ async function toggleActive(product: any) {
     })
     await refresh()
   } catch (err) {
-    actionError.value = getErrorMessage(err, 'Failed to update product status')
+    actionError.value = getErrorMessage(err, 'Could not update whether this product is live')
   }
 }
 
-async function toggleFeatured(product: any) {
+async function toggleFeatured(product: Product) {
   actionError.value = ''
   try {
     await $fetch(`/api/products/${product.productId}`, {
@@ -57,27 +81,25 @@ async function toggleFeatured(product: any) {
     })
     await refresh()
   } catch (err) {
-    actionError.value = getErrorMessage(err, 'Failed to update featured status')
+    actionError.value = getErrorMessage(err, 'Could not update featured status')
   }
 }
 
-async function duplicateProduct(product: any) {
+async function duplicateProduct(product: Product) {
+  closeMenu()
   duplicating.value = product.productId
-  
+  actionError.value = ''
+
   try {
-    // Generate new product ID with -copy suffix
     let newProductId = `${product.productId}-copy`
-    
-    // Check if copy already exists, add number if needed
-    const existingIds = products.value?.map((p: any) => p.productId) || []
+    const existingIds = ((products.value || []) as Product[]).map((item) => item.productId)
     let copyNum = 1
     while (existingIds.includes(newProductId)) {
       copyNum++
       newProductId = `${product.productId}-copy-${copyNum}`
     }
-    
-    // Create the duplicate
-    const newProduct = await $fetch('/api/products', {
+
+    await $fetch('/api/products', {
       method: 'POST',
       body: {
         productId: newProductId,
@@ -92,67 +114,71 @@ async function duplicateProduct(product: any) {
         category: product.category,
         country: product.country || 'Kenya',
         features: product.features,
-        isActive: false, // Start as inactive
+        isActive: false,
         featured: false,
         currency: product.currency,
         metaPixel: product.metaPixel || undefined,
       },
     })
-    
-    // Refresh and redirect to edit the new product
+
     await refresh()
     await router.push(`/a/${adminPath.value}/products/${newProductId}`)
   } catch (err: unknown) {
-    console.error('Failed to duplicate product:', err)
-    actionError.value = getErrorMessage(err, 'Failed to duplicate product. The product ID may already exist.')
+    actionError.value = getErrorMessage(err, 'Could not duplicate this product')
   } finally {
     duplicating.value = null
   }
 }
 
-function confirmDelete(productId: string) {
-  showDeleteConfirm.value = productId
-}
+async function deleteProduct(product: Product) {
+  deleting.value = product.productId
+  actionError.value = ''
 
-function cancelDelete() {
-  showDeleteConfirm.value = null
-}
-
-async function deleteProduct(productId: string) {
-  deleting.value = productId
-  
   try {
-    await $fetch(`/api/products/${productId}`, {
-      method: 'DELETE',
-    })
+    await $fetch(`/api/products/${product.productId}`, { method: 'DELETE' })
     showDeleteConfirm.value = null
     await refresh()
   } catch (err: unknown) {
-    console.error('Failed to delete product:', err)
-    actionError.value = getErrorMessage(err, 'Failed to delete product')
+    actionError.value = getErrorMessage(err, 'Could not delete this product')
   } finally {
     deleting.value = null
   }
+}
+
+function clearFilters() {
+  search.value = ''
+  filterCountry.value = ''
+  filterStatus.value = ''
 }
 </script>
 
 <template>
   <div class="products-page">
     <div class="admin-header">
-      <h1>Products</h1>
-      <NuxtLink :to="`/a/${adminPath}/products/new`" class="btn primary">Add Product</NuxtLink>
+      <div>
+        <h1>Products</h1>
+        <p class="lede">{{ formatCount(liveCount) }} live · {{ formatCount((products || []).length) }} in the catalogue</p>
+      </div>
+      <NuxtLink :to="`/a/${adminPath}/products/new`" class="btn primary">Add product</NuxtLink>
     </div>
 
-    <div class="filter-bar">
-      <div class="filter-group">
-        <span class="filter-label">Filter by Country:</span>
-        <CustomSelect 
-          v-model="filterCountry" 
-          :options="countryOptions"
-          placeholder="All Countries"
-        />
+    <div class="toolbar">
+      <input
+        v-model="search"
+        class="search"
+        type="search"
+        placeholder="Search name, ID, or category"
+      >
+      <CustomSelect
+        v-model="filterCountry"
+        :options="countryOptions"
+        placeholder="All markets"
+      />
+      <div class="chips" role="group" aria-label="Product visibility">
+        <button type="button" :class="{ active: filterStatus === '' }" @click="filterStatus = ''">All</button>
+        <button type="button" :class="{ active: filterStatus === 'live' }" @click="filterStatus = 'live'">Live</button>
+        <button type="button" :class="{ active: filterStatus === 'hidden' }" @click="filterStatus = 'hidden'">Hidden</button>
       </div>
-      <span class="product-count">{{ filteredProducts.length }} product(s)</span>
     </div>
 
     <p v-if="actionError" class="error-banner">{{ actionError }}</p>
@@ -164,92 +190,106 @@ async function deleteProduct(productId: string) {
       :retry="refresh"
     />
 
-    <div v-else class="card">
-      <table v-if="filteredProducts.length" class="data-table">
-        <thead>
-          <tr>
-            <th>Image</th>
-            <th>Name</th>
-            <th>Country</th>
-            <th>Category</th>
-            <th>1-Pack Price</th>
-            <th>Sold</th>
-            <th>Status</th>
-            <th>Featured</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="product in filteredProducts" :key="product.productId">
-            <td>
-              <img :src="product.images[0]" :alt="product.productName" class="product-thumb" />
-            </td>
-            <td>
-              <span class="product-name">{{ product.productName }}</span>
-              <span class="product-id">{{ product.productId }}</span>
-            </td>
-            <td>
-              <span class="country-badge">{{ product.country || 'Kenya' }}</span>
-            </td>
-            <td>{{ product.category }}</td>
-            <td>{{ formatMoney(product.pack1Price, product.currency) }}</td>
-            <td>{{ product.soldCount }}</td>
-            <td>
-              <button 
-                :class="['toggle-btn', product.isActive ? 'active' : 'inactive']"
-                @click="toggleActive(product)"
-              >
-                {{ product.isActive ? 'Active' : 'Inactive' }}
-              </button>
-            </td>
-            <td>
-              <button 
-                :class="['toggle-btn', product.featured ? 'featured' : '']"
-                @click="toggleFeatured(product)"
-              >
-                {{ product.featured ? 'Featured' : 'Not Featured' }}
-              </button>
-            </td>
-            <td class="actions-cell">
-              <NuxtLink :to="`/a/${adminPath}/products/${product.productId}`" class="action-link">
-                Edit
-              </NuxtLink>
-              <button 
-                class="action-link duplicate" 
-                :disabled="duplicating === product.productId"
-                @click="duplicateProduct(product)"
-              >
-                {{ duplicating === product.productId ? 'Copying...' : 'Duplicate' }}
-              </button>
-              <button 
-                class="action-link delete" 
-                @click="confirmDelete(product.productId)"
-              >
-                Delete
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else-if="filteredProducts.length" class="list">
+      <article v-for="product in filteredProducts" :key="product.productId" class="list-card">
+        <NuxtLink :to="`/a/${adminPath}/products/${product.productId}`" class="thumb-link">
+          <img
+            v-if="product.images[0]"
+            :src="product.images[0]"
+            :alt="product.productName"
+            class="thumb"
+          >
+          <span v-else class="thumb fallback">{{ product.productName.slice(0, 1) }}</span>
+        </NuxtLink>
 
-      <p v-else class="empty">{{ filterCountry ? 'No products found for this country.' : 'No products yet. Add your first product!' }}</p>
+        <div class="main">
+          <h2>
+            <NuxtLink :to="`/a/${adminPath}/products/${product.productId}`">
+              {{ product.productName }}
+            </NuxtLink>
+          </h2>
+          <p class="meta">
+            {{ getCountryFlag(product.country || 'Kenya') }} {{ product.country || 'Kenya' }}
+            · {{ product.category }}
+            · {{ formatCount(product.soldCount) }} sold
+          </p>
+          <div class="flags">
+            <button
+              type="button"
+              :class="['flag-chip', product.isActive ? 'live' : 'hidden']"
+              @click="toggleActive(product)"
+            >
+              {{ product.isActive ? 'On the store' : 'Hidden' }}
+            </button>
+            <button
+              type="button"
+              :class="['flag-chip', product.featured ? 'featured' : 'quiet']"
+              @click="toggleFeatured(product)"
+            >
+              {{ product.featured ? 'Featured' : 'Not featured' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="aside">
+          <p class="price">{{ formatMoney(product.pack1Price, product.currency) }}</p>
+          <p class="pack">1-pack price</p>
+          <div class="actions">
+            <NuxtLink :to="`/a/${adminPath}/products/${product.productId}`" class="btn ghost btn-sm">
+              Edit
+            </NuxtLink>
+            <NuxtLink :to="`/a/${adminPath}/costs?product=${encodeURIComponent(product.productId)}`" class="btn ghost btn-sm">
+              Ads
+            </NuxtLink>
+            <div class="more-wrap" @click.stop>
+              <button
+                class="more-btn"
+                type="button"
+                :aria-expanded="openMenu === product.productId"
+                @click="toggleMenu($event, product.productId)"
+              >
+                More
+              </button>
+              <div v-if="openMenu === product.productId" class="menu">
+                <button type="button" :disabled="duplicating === product.productId" @click="duplicateProduct(product)">
+                  {{ duplicating === product.productId ? 'Copying…' : 'Duplicate' }}
+                </button>
+                <a :href="`/product/${product.productId}`" target="_blank" rel="noopener" @click="closeMenu">
+                  View on store
+                </a>
+                <button type="button" class="danger" @click="showDeleteConfirm = product; closeMenu()">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
     </div>
 
-    <!-- Delete Confirmation Modal -->
+    <div v-else class="empty-card">
+      <p v-if="search || filterCountry || filterStatus">Nothing matches those filters.</p>
+      <p v-else>No products yet. Add one and it will show up here.</p>
+      <button v-if="search || filterCountry || filterStatus" class="btn ghost" type="button" @click="clearFilters">
+        Clear filters
+      </button>
+      <NuxtLink v-else :to="`/a/${adminPath}/products/new`" class="btn primary">Add product</NuxtLink>
+    </div>
+
     <Teleport to="body">
-      <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="cancelDelete">
+      <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = null">
         <div class="modal">
-          <h3>Delete Product</h3>
-          <p>Are you sure you want to delete <strong>{{ showDeleteConfirm }}</strong>?</p>
-          <p class="warning">This action cannot be undone.</p>
+          <h3>Delete {{ showDeleteConfirm.productName }}?</h3>
+          <p>This removes it from the store. Existing orders stay as they are.</p>
           <div class="modal-actions">
-            <button class="btn secondary" @click="cancelDelete">Cancel</button>
-            <button 
-              class="btn danger" 
-              :disabled="deleting === showDeleteConfirm"
+            <button class="btn ghost" type="button" @click="showDeleteConfirm = null">Keep it</button>
+            <button
+              class="btn danger"
+              type="button"
+              :disabled="deleting === showDeleteConfirm.productId"
               @click="deleteProduct(showDeleteConfirm)"
             >
-              {{ deleting === showDeleteConfirm ? 'Deleting...' : 'Delete' }}
+              {{ deleting === showDeleteConfirm.productId ? 'Deleting…' : 'Delete product' }}
             </button>
           </div>
         </div>
@@ -260,122 +300,243 @@ async function deleteProduct(productId: string) {
 
 <style scoped>
 .products-page {
-  max-width: 1400px;
+  max-width: 1100px;
 }
 
-.filter-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 20px;
-  padding: 12px 16px;
-  background: var(--chip);
-  border-radius: 8px;
+.lede {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
 }
 
-.filter-group {
+.toolbar {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
-.filter-label {
-  font-size: 14px;
-  font-weight: 500;
+.search {
+  flex: 1 1 240px;
+  min-width: 200px;
 }
 
-.product-count {
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.country-badge {
-  display: inline-block;
-  padding: 4px 8px;
+.chips {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
   background: var(--chip);
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
+  border-radius: 999px;
 }
 
-.product-thumb {
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-  border-radius: 8px;
-  background: var(--chip);
-}
-
-.product-name {
-  display: block;
-  font-weight: 500;
-}
-
-.product-id {
-  display: block;
-  font-size: 12px;
+.chips button {
+  border: 0;
+  background: transparent;
   color: var(--muted);
-  font-family: monospace;
-}
-
-.toggle-btn {
-  padding: 4px 10px;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  border-radius: 6px;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 999px;
   cursor: pointer;
 }
 
-.toggle-btn.active {
+.chips button.active {
+  background: var(--bg-2);
+  color: var(--ink);
+  box-shadow: 0 1px 0 rgba(20, 23, 20, 0.06);
+}
+
+.list {
+  display: grid;
+  gap: 12px;
+}
+
+.list-card {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.thumb-link {
+  display: block;
+}
+
+.thumb,
+.fallback {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--chip);
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.main h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.main h2 a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.main h2 a:hover {
+  color: var(--accent);
+}
+
+.meta {
+  margin: 4px 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flag-chip {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.flag-chip.live {
   background: #d1fae5;
-  border-color: #065f46;
+  border-color: #a7f3d0;
   color: #065f46;
 }
 
-.toggle-btn.inactive {
+.flag-chip.hidden {
   background: #fee2e2;
-  border-color: #991b1b;
+  border-color: #fecaca;
   color: #991b1b;
 }
 
-.toggle-btn.featured {
+.flag-chip.featured {
   background: #dbeafe;
-  border-color: #1e40af;
+  border-color: #bfdbfe;
   color: #1e40af;
 }
 
-.actions-cell {
-  display: flex;
-  gap: 12px;
+.flag-chip.quiet {
+  color: var(--muted);
 }
 
-.action-link {
-  color: var(--accent);
+.aside {
+  text-align: right;
+  min-width: 180px;
+}
+
+.price {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.pack {
+  margin: 2px 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btn-sm {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.more-wrap {
+  position: relative;
+}
+
+.more-btn {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 5;
+  min-width: 160px;
+  padding: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.menu button,
+.menu a {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: var(--ink);
   text-decoration: none;
   font-size: 14px;
-  background: none;
-  border: none;
+  border-radius: 8px;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.15s;
 }
 
-.action-link:hover {
+.menu button:hover,
+.menu a:hover {
   background: var(--chip);
 }
 
-.action-link.delete {
-  color: #dc2626;
+.menu .danger {
+  color: var(--danger);
 }
 
-.action-link.delete:hover {
-  background: #fee2e2;
+.empty-card {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--bg-2);
+  border: 1px dashed var(--line);
+  border-radius: 16px;
 }
 
-/* Modal */
+.empty-card p {
+  margin-bottom: 16px;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -384,6 +545,7 @@ async function deleteProduct(productId: string) {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  padding: 16px;
 }
 
 .modal {
@@ -391,24 +553,17 @@ async function deleteProduct(productId: string) {
   padding: 24px;
   border-radius: 16px;
   max-width: 400px;
-  width: 90%;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  width: 100%;
 }
 
 .modal h3 {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   font-size: 18px;
 }
 
 .modal p {
-  margin: 0 0 8px;
-  color: var(--text);
-}
-
-.modal .warning {
-  color: #dc2626;
-  font-size: 14px;
-  margin-bottom: 20px;
+  margin: 0 0 20px;
+  color: var(--muted);
 }
 
 .modal-actions {
@@ -417,40 +572,26 @@ async function deleteProduct(productId: string) {
   justify-content: flex-end;
 }
 
-.btn.secondary {
-  background: var(--chip);
-  color: var(--ink);
-}
+@media (max-width: 720px) {
+  .list-card {
+    grid-template-columns: 64px 1fr;
+  }
 
-.btn.danger {
-  background: #dc2626;
-  color: white;
-}
+  .thumb,
+  .fallback {
+    width: 64px;
+    height: 64px;
+  }
 
-.btn.danger:hover {
-  background: #b91c1c;
-}
+  .aside {
+    grid-column: 1 / -1;
+    text-align: left;
+    min-width: 0;
+  }
 
-.action-link:hover {
-  text-decoration: underline;
-}
-
-.action-link.duplicate {
-  color: var(--muted);
-}
-
-.action-link.duplicate:hover {
-  color: var(--ink);
-}
-
-.action-link:disabled {
-  opacity: 0.5;
-  cursor: wait;
-}
-
-.empty {
-  color: var(--muted);
-  text-align: center;
-  padding: 32px;
+  .actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
 }
 </style>

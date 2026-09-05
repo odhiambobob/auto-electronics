@@ -1,5 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { getDeliveryRates, rateForCountry } from '../../utils/costs'
 
 const createOrderSchema = z.object({
   customerName: z.string().min(1),
@@ -55,6 +56,7 @@ export default defineSafeEventHandler(async (event) => {
 
   const totalPrice = unitPrice * parsed.data.quantity
   const orderId = generateOrderId()
+  const countryRate = rateForCountry(await getDeliveryRates(), product.country)
 
   const check = await verifyOrderEvent(parsed.data.keverdEventId, {
     stage: parsed.data.keverdErrorStage,
@@ -78,6 +80,7 @@ export default defineSafeEventHandler(async (event) => {
       quantity: parsed.data.quantity,
       totalPrice,
       currency: product.currency,
+      deliveryCost: countryRate?.amount ?? null,
       deliveryDate: parsed.data.deliveryDate,
       status: 'pending',
       keverdEventId: check.eventId || parsed.data.keverdEventId || null,
@@ -99,5 +102,6 @@ export default defineSafeEventHandler(async (event) => {
     })
     .where(eq(schema.products.productId, parsed.data.productId))
 
-  return order
+  const { deliveryCost: _deliveryCost, ...customerOrder } = order
+  return customerOrder
 })
