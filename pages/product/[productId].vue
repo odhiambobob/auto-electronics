@@ -80,6 +80,14 @@ const packageName = computed(() => {
   return packLabel(pack.value)
 })
 
+const packChoice = computed({
+  get: () => String(pack.value),
+  set: (value: string) => {
+    const size = Number(value)
+    if (size === 1 || size === 2 || size === 3) pack.value = size as PackSize
+  },
+})
+
 // Track product view
 onMounted(() => {
   if (product.value && !isPreview.value) {
@@ -133,6 +141,38 @@ if (product.value) {
 function money(amount: number) {
   return formatMoney(amount, product.value?.currency || 'KES')
 }
+
+const packOptions = computed(() => {
+  if (!product.value) return []
+  return packs.map((size) => {
+    const price = money(packPrice(product.value as Product, size))
+    const save = savingsPercent(product.value as Product, size)
+    return {
+      value: String(size),
+      label: save ? `${packLabel(size)} · ${price} · Save ${save}%` : `${packLabel(size)} · ${price}`,
+    }
+  })
+})
+
+const placeholders = computed(() => {
+  const country = product.value?.country || 'Kenya'
+  if (country === 'Zambia') {
+    return {
+      name: 'e.g. Chanda Mwansa',
+      phone: '097 123 4567',
+      altPhone: '096 555 0100',
+      address: 'House 12, Kamwala, near the market',
+      city: 'Lusaka',
+    }
+  }
+  return {
+    name: 'e.g. Jane Wanjiku',
+    phone: '0712 345 678',
+    altPhone: '0110 123 456',
+    address: 'House 12, Ngong Road, near the plaza',
+    city: 'Nairobi',
+  }
+})
 
 function bump(delta: number) {
   quantity.value = Math.min(10, Math.max(1, quantity.value + delta))
@@ -362,11 +402,12 @@ function flushForm() {
           <p class="autofill">{{ product.productName }} · {{ packageName }}</p>
 
           <label>
-            Full name
+            <span>Full name <span class="req" aria-hidden="true">*</span></span>
             <input 
               v-model="form.customerName" 
               name="customerName" 
-              autocomplete="name" 
+              autocomplete="name"
+              :placeholder="placeholders.name"
               required 
               @input.once="trackFormStarted"
               @input="queueField('customerName', form.customerName)"
@@ -374,13 +415,14 @@ function flushForm() {
             />
           </label>
           <label>
-            Primary phone
+            <span>Primary phone <span class="req" aria-hidden="true">*</span></span>
             <input 
               v-model="form.primaryPhone" 
               name="primaryPhone" 
               type="tel" 
               inputmode="tel" 
-              autocomplete="tel" 
+              autocomplete="tel"
+              :placeholder="placeholders.phone"
               required 
               @input="queueField('primaryPhone', form.primaryPhone)"
               @blur="rememberField('primaryPhone', form.primaryPhone)"
@@ -393,27 +435,30 @@ function flushForm() {
               name="alternativePhone" 
               type="tel" 
               inputmode="tel"
+              :placeholder="placeholders.altPhone"
               @input="queueField('alternativePhone', form.alternativePhone)"
               @blur="rememberField('alternativePhone', form.alternativePhone)"
             />
           </label>
           <label>
-            Delivery address
+            <span>Delivery address <span class="req" aria-hidden="true">*</span></span>
             <textarea 
               v-model="form.deliveryAddress" 
               name="deliveryAddress" 
-              rows="3" 
+              rows="3"
+              :placeholder="placeholders.address"
               required 
               @input="queueField('deliveryAddress', form.deliveryAddress)"
               @blur="rememberField('deliveryAddress', form.deliveryAddress)"
             />
           </label>
           <label>
-            City
+            <span>City <span class="req" aria-hidden="true">*</span></span>
             <input 
               v-model="form.city" 
               name="city" 
-              autocomplete="address-level2" 
+              autocomplete="address-level2"
+              :placeholder="placeholders.city"
               required 
               @input="queueField('city', form.city)"
               @blur="rememberField('city', form.city)"
@@ -430,7 +475,24 @@ function flushForm() {
             />
           </label>
 
-          <p class="cod">Payment is done on delivery. You pay when the order arrives — not on this page.</p>
+          <div class="order-summary">
+            <label v-if="!isUnitPricing" class="summary-pick">
+              Pack
+              <CustomSelect v-model="packChoice" :options="packOptions" />
+            </label>
+            <div v-else class="summary-pick">
+              <span>Quantity</span>
+              <div class="stepper">
+                <button type="button" aria-label="Decrease quantity" @click="bump(-1)">&minus;</button>
+                <strong>{{ quantity }}</strong>
+                <button type="button" aria-label="Increase quantity" @click="bump(1)">+</button>
+              </div>
+            </div>
+            <p class="summary-total">
+              <span>Total</span>
+              <strong>{{ money(total) }}</strong>
+            </p>
+          </div>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <button class="btn primary wide" type="submit" :disabled="submitting">
             {{ submitting ? 'Placing order…' : 'Place order' }}
@@ -694,12 +756,58 @@ h1 {
   font-weight: 600;
 }
 
-.cod {
-  font-size: 14px;
-  color: var(--text);
-  background: var(--chip);
+.req {
+  color: #dc2626;
+}
+
+.order-summary {
+  display: grid;
+  gap: 12px;
   padding: 12px 14px;
+  background: var(--chip);
   border-radius: 12px;
+}
+
+.summary-pick {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.summary-pick :deep(.custom-select) {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.summary-pick :deep(.select-trigger) {
+  min-height: 48px;
+  padding: 12px;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 600;
+}
+
+.summary-pick .stepper {
+  justify-self: start;
+}
+
+.summary-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.summary-total strong {
+  font-family: var(--display);
+  font-size: 26px;
+  letter-spacing: -0.04em;
+  color: var(--ink);
 }
 
 .error {

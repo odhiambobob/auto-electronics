@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const route = useRoute()
 const adminPath = useState<string>('adminPath')
-const { formatMoney, formatCount, formatDate } = useFormat()
+const { formatMoney, formatDate, formatMoneyList } = useFormat()
 const { getCountryFlag, getCountryCurrency, countryOptions } = useCountries()
 const { getErrorMessage } = useApiError()
 
@@ -12,6 +12,7 @@ const rateDraft = reactive<Record<string, string>>({})
 const savingRates = ref(false)
 const ratesError = ref('')
 const ratesSuccess = ref('')
+const listFilter = ref('')
 
 const spendForm = reactive({
   productId: typeof route.query.product === 'string' ? route.query.product : '',
@@ -26,8 +27,7 @@ const deletingSpend = ref<number | null>(null)
 
 const { data: ratesData, error: ratesLoadError, refresh: refreshRates } = await useFetch('/api/admin/delivery-rates')
 const { data: spendsData, error: spendsError, refresh: refreshSpends } = await useFetch('/api/admin/ad-spends', {
-  query: computed(() => spendForm.productId ? { productId: spendForm.productId } : {}),
-  watch: [() => spendForm.productId],
+  key: 'admin-ad-spends',
 })
 const { data: products, error: productsError } = await useFetch('/api/admin/products')
 const { data: profit, error: profitError, refresh: refreshProfit } = await useFetch('/api/analytics/profit', {
@@ -42,7 +42,6 @@ const totals = computed(() => profit.value?.totals || {
   deliveryKes: 0,
   adsKes: 0,
   netKes: 0,
-  roas: null as number | null,
 })
 
 const rateCountries = computed(() => {
@@ -56,16 +55,11 @@ const unusedCountries = computed(() =>
   countryOptions.filter((option) => !rateCountries.value.includes(option.value)),
 )
 
-const productOptions = computed(() => [
-  { value: '', label: 'All products' },
-  ...((products.value || []) as { productId: string; productName: string; country?: string }[]).map((product) => ({
+const spendProductOptions = computed(() =>
+  ((products.value || []) as { productId: string; productName: string; country?: string }[]).map((product) => ({
     value: product.productId,
     label: `${product.productName} · ${product.country || 'Kenya'}`,
   })),
-])
-
-const spendProductOptions = computed(() =>
-  productOptions.value.filter((option) => option.value),
 )
 
 const currencyOptions = computed(() => {
@@ -74,6 +68,54 @@ const currencyOptions = computed(() => {
     if (product.currency) codes.add(product.currency)
   }
   return [...codes].sort().map((value) => ({ value, label: value }))
+})
+
+type SpendRow = {
+  id: number
+  productId: string
+  productName: string
+  amount: number
+  currency: string
+  spentOn: string
+  note: string | null
+}
+
+const groupedSpends = computed(() => {
+  const groups = new Map<string, { productId: string; productName: string; entries: SpendRow[] }>()
+  for (const spend of (spendsData.value?.spends || []) as SpendRow[]) {
+    if (listFilter.value && spend.productId !== listFilter.value) continue
+    const current = groups.get(spend.productId) || {
+      productId: spend.productId,
+      productName: spend.productName || spend.productId,
+      entries: [],
+    }
+    current.entries.push(spend)
+    groups.set(spend.productId, current)
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      entries: [...group.entries].sort((a, b) => String(b.spentOn).localeCompare(String(a.spentOn)) || b.id - a.id),
+    }))
+    .sort((a, b) => {
+      const latestA = a.entries[0]?.spentOn || ''
+      const latestB = b.entries[0]?.spentOn || ''
+      return latestB.localeCompare(latestA) || a.productName.localeCompare(b.productName)
+    })
+})
+
+const listFilterOptions = computed(() => {
+  const seen = new Map<string, string>()
+  for (const spend of (spendsData.value?.spends || []) as SpendRow[]) {
+    seen.set(spend.productId, spend.productName || spend.productId)
+  }
+  return [
+    { value: '', label: 'All products' },
+    ...[...seen.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([value, label]) => ({ value, label })),
+  ]
 })
 
 watch(ratesData, (data) => {
@@ -96,6 +138,14 @@ function addCountry() {
   if (!extraCountry.value || rateDraft[extraCountry.value] != null) return
   rateDraft[extraCountry.value] = ''
   extraCountry.value = ''
+}
+
+function groupTotal(entries: SpendRow[]) {
+  const byCurrency = new Map<string, number>()
+  for (const entry of entries) {
+    byCurrency.set(entry.currency, (byCurrency.get(entry.currency) || 0) + Number(entry.amount || 0))
+  }
+  return formatMoneyList([...byCurrency.entries()].map(([currency, amount]) => ({ currency, amount })))
 }
 
 async function saveRates() {
@@ -213,16 +263,14 @@ function countryUnset(country: string) {
         <div class="stat-card" :class="{ good: totals.netKes > 0, hot: totals.netKes < 0 }">
           <p class="label">Net after costs</p>
           <p class="value money">{{ formatMoney(totals.netKes, 'KES') }}</p>
-          <p class="sub">
-            {{ totals.roas == null ? 'No ad spend in this period' : `ROAS ${totals.roas}x` }}
-          </p>
+          <p class="sub">Collected minus delivery and ads</p>
         </div>
       </div>
 
       <div class="split">
         <div class="card">
           <h2>Delivery rates</h2>
-          <p class="note">One courier cost per country, in that country’s currency. New orders pick it up automatically. You can still override a single order.</p>
+          <p class="note">One courier cost per country. New orders pick it up automatically. You can still override a single order.</p>
 
           <div class="rate-list">
             <div v-for="country in rateCountries" :key="country" class="rate-row">
@@ -261,7 +309,7 @@ function countryUnset(country: string) {
 
         <div class="card">
           <h2>Log ad spend</h2>
-          <p class="note">Attach spend to a product so you can see if the ads are covering delivery and still leaving a profit.</p>
+          <p class="note">Add what you spent on a product. The list below keeps every product’s entries visible.</p>
           <form @submit.prevent="addSpend">
             <div class="form-group">
               <label>Product</label>
@@ -297,83 +345,48 @@ function countryUnset(country: string) {
 
       <div class="card">
         <div class="card-header">
-          <h2>Is it worth it?</h2>
-          <CustomSelect v-model="spendForm.productId" :options="productOptions" placeholder="All products" />
+          <div>
+            <h2>Ad entries</h2>
+            <p class="note tight">Grouped by product, newest first.</p>
+          </div>
+          <CustomSelect
+            v-if="listFilterOptions.length > 2"
+            v-model="listFilter"
+            :options="listFilterOptions"
+            placeholder="All products"
+          />
         </div>
-        <p class="note">Collected minus courier cost minus ads, in KES. Filter the table with the product picker.</p>
-        <table v-if="profit?.products?.length" class="data-table">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th class="text-right">Delivered</th>
-              <th class="text-right">Collected</th>
-              <th class="text-right">Delivery</th>
-              <th class="text-right">Ads</th>
-              <th class="text-right">Net</th>
-              <th class="text-right">ROAS</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="row in profit.products.filter((item) => !spendForm.productId || item.productId === spendForm.productId)"
-              :key="row.productId"
-            >
-              <td>
-                <NuxtLink :to="`/a/${adminPath}/products/${row.productId}`" class="product-link">
-                  {{ row.productName }}
-                </NuxtLink>
-                <div class="muted">{{ getCountryFlag(row.country) }} {{ row.country }}</div>
-              </td>
-              <td class="text-right">{{ formatCount(row.delivered) }}</td>
-              <td class="text-right">{{ formatMoney(row.collectedKes, 'KES') }}</td>
-              <td class="text-right">{{ formatMoney(row.deliveryKes, 'KES') }}</td>
-              <td class="text-right">{{ formatMoney(row.adsKes, 'KES') }}</td>
-              <td class="text-right" :class="{ good: row.netKes > 0, hot: row.netKes < 0 }">
-                <strong>{{ formatMoney(row.netKes, 'KES') }}</strong>
-              </td>
-              <td class="text-right">{{ row.roas == null ? '—' : `${row.roas}x` }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-else class="empty">No delivered orders or ad spend in this period.</p>
-        <p v-if="profit?.fx?.note" class="muted fx">{{ profit.fx.note }}</p>
-      </div>
 
-      <div class="card">
-        <h2>Ad entries</h2>
-        <table v-if="spendsData?.spends?.length" class="data-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Product</th>
-              <th class="text-right">Amount</th>
-              <th>Note</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="spend in spendsData.spends" :key="spend.id">
-              <td>{{ formatDate(spend.spentOn) }}</td>
-              <td>
-                <NuxtLink :to="`/a/${adminPath}/products/${spend.productId}`" class="product-link">
-                  {{ spend.productName }}
+        <div v-if="groupedSpends.length" class="groups">
+          <section v-for="group in groupedSpends" :key="group.productId" class="spend-group">
+            <header class="group-head">
+              <div>
+                <NuxtLink :to="`/a/${adminPath}/products/${group.productId}`" class="product-link">
+                  {{ group.productName }}
                 </NuxtLink>
-              </td>
-              <td class="text-right">{{ formatMoney(spend.amount, spend.currency) }}</td>
-              <td class="muted">{{ spend.note || '—' }}</td>
-              <td class="text-right">
+                <p class="muted">{{ group.entries.length }} {{ group.entries.length === 1 ? 'entry' : 'entries' }}</p>
+              </div>
+              <strong>{{ groupTotal(group.entries) }}</strong>
+            </header>
+            <ul class="entry-list">
+              <li v-for="spend in group.entries" :key="spend.id" class="entry">
+                <div>
+                  <p class="entry-amount">{{ formatMoney(spend.amount, spend.currency) }}</p>
+                  <p class="muted">{{ formatDate(spend.spentOn) }}{{ spend.note ? ` · ${spend.note}` : '' }}</p>
+                </div>
                 <button
                   class="action-link delete"
+                  type="button"
                   :disabled="deletingSpend === spend.id"
                   @click="removeSpend(spend.id)"
                 >
                   {{ deletingSpend === spend.id ? 'Removing…' : 'Remove' }}
                 </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-else class="empty">No ad spend logged yet.</p>
+              </li>
+            </ul>
+          </section>
+        </div>
+        <p v-else class="empty">{{ listFilter ? 'No spend logged for that product yet.' : 'No ad spend logged yet.' }}</p>
       </div>
     </template>
   </div>
@@ -436,13 +449,8 @@ function countryUnset(country: string) {
   color: var(--good);
 }
 
-.stat-card.hot .value,
-.hot {
+.stat-card.hot .value {
   color: var(--danger);
-}
-
-.good {
-  color: var(--good);
 }
 
 .stat-card .label {
@@ -488,13 +496,17 @@ function countryUnset(country: string) {
 .card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 
 .note {
   margin: 0 0 16px;
+}
+
+.note.tight {
+  margin: 0;
 }
 
 .rate-list {
@@ -541,8 +553,46 @@ function countryUnset(country: string) {
   gap: 12px;
 }
 
-.text-right {
-  text-align: right;
+.groups {
+  display: grid;
+  gap: 16px;
+}
+
+.spend-group {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--chip);
+}
+
+.entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.entry-amount {
+  margin: 0;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .product-link {
@@ -573,10 +623,6 @@ function countryUnset(country: string) {
   padding: 32px;
 }
 
-.fx {
-  margin: 12px 0 0;
-}
-
 .success-banner {
   background: #d1fae5;
   color: #065f46;
@@ -590,11 +636,13 @@ function countryUnset(country: string) {
   .rate-row,
   .form-row,
   .add-country,
-  .card-header {
+  .card-header,
+  .group-head {
     grid-template-columns: 1fr;
   }
 
-  .card-header {
+  .card-header,
+  .group-head {
     display: grid;
   }
 }
