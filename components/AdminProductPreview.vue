@@ -112,7 +112,6 @@ watch(() => props.liveSrc, (src) => {
             <nav>Home · Products</nav>
           </header>
           <div class="mock-page">
-            <p class="crumbs">Home / Products / {{ product.productName }}</p>
             <div class="split">
               <div class="gallery">
                 <img v-if="product.images[0]" :src="product.images[0]" :alt="product.productName" />
@@ -243,7 +242,6 @@ watch(() => props.liveSrc, (src) => {
   padding: 16px;
 }
 
-.crumbs,
 .cat,
 .blurb {
   color: var(--muted);
@@ -253,7 +251,6 @@ watch(() => props.liveSrc, (src) => {
 .split {
   display: grid;
   gap: 18px;
-  margin-top: 12px;
 }
 
 .mock.desktop .split,

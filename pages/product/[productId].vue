@@ -320,13 +320,6 @@ function flushForm() {
 
   <div v-else class="page" :class="{ preview: isPreview }">
     <p v-if="isPreview" class="preview-banner">Preview mode — this is how the product appears to customers.</p>
-    <nav class="crumbs">
-      <NuxtLink to="/">Home</NuxtLink>
-      <span>/</span>
-      <NuxtLink to="/products">Products</NuxtLink>
-      <span>/</span>
-      <span>{{ product.productName }}</span>
-    </nav>
 
     <div class="split">
       <div class="gallery-col">
@@ -497,22 +490,8 @@ function flushForm() {
   padding: 80px 0;
 }
 
-.crumbs {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 13px;
-  color: var(--muted);
-}
 
-.crumbs a {
-  color: var(--muted);
-  text-decoration: none;
-}
 
-.crumbs a:hover {
-  color: var(--ink);
-}
 
 .split {
   display: grid;
@@ -780,10 +759,6 @@ h1 {
     gap: 40px;
   }
 
-  .crumbs {
-    gap: 5px;
-    font-size: 12px;
-  }
 
   .split {
     gap: 22px;
