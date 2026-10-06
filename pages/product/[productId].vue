@@ -80,14 +80,6 @@ const packageName = computed(() => {
   return packLabel(pack.value)
 })
 
-const packChoice = computed({
-  get: () => String(pack.value),
-  set: (value: string) => {
-    const size = Number(value)
-    if (size === 1 || size === 2 || size === 3) pack.value = size as PackSize
-  },
-})
-
 // Track product view
 onMounted(() => {
   if (product.value && !isPreview.value) {
@@ -141,18 +133,6 @@ if (product.value) {
 function money(amount: number) {
   return formatMoney(amount, product.value?.currency || 'KES')
 }
-
-const packOptions = computed(() => {
-  if (!product.value) return []
-  return packs.map((size) => {
-    const price = money(packPrice(product.value as Product, size))
-    const save = savingsPercent(product.value as Product, size)
-    return {
-      value: String(size),
-      label: save ? `${packLabel(size)} · ${price} · Save ${save}%` : `${packLabel(size)} · ${price}`,
-    }
-  })
-})
 
 const placeholders = computed(() => {
   const country = product.value?.country || 'Kenya'
@@ -444,10 +424,15 @@ function flushForm() {
           </label>
 
           <div class="order-summary">
-            <label v-if="!isUnitPricing" class="summary-pick">
-              Pack
-              <CustomSelect v-model="packChoice" :options="packOptions" />
-            </label>
+            <fieldset v-if="!isUnitPricing" class="packs">
+              <legend>Pack</legend>
+              <label v-for="size in packs" :key="size" :class="{ on: pack === size }">
+                <input v-model="pack" type="radio" name="pack" :value="size" />
+                <strong class="pack-name">{{ packLabel(size) }}</strong>
+                <span>{{ money(packPrice(product, size)) }}</span>
+                <em v-if="savingsPercent(product, size)">Save {{ savingsPercent(product, size) }}%</em>
+              </label>
+            </fieldset>
             <div v-else class="summary-pick">
               <span>Quantity</span>
               <div class="stepper">
@@ -456,15 +441,11 @@ function flushForm() {
                 <button type="button" aria-label="Increase quantity" @click="bump(1)">+</button>
               </div>
             </div>
-            <p v-if="isUnitPricing" class="unit-price">{{ money(product.unitPrice) }} per unit</p>
-            <p class="summary-total">
-              <span>Total</span>
-              <strong>{{ money(total) }}</strong>
-            </p>
           </div>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
-          <button class="btn primary wide" type="submit" :disabled="submitting">
-            {{ submitting ? 'Placing order…' : 'Place order' }}
+          <button class="btn primary wide order-btn" type="submit" :disabled="submitting">
+            <span>{{ submitting ? 'Placing order…' : `Place order · ${money(total)}` }}</span>
+            <small v-if="isUnitPricing && !submitting">{{ quantity }} × {{ money(product.unitPrice) }} per unit</small>
           </button>
         </form>
 
@@ -678,45 +659,76 @@ h1 {
   font-weight: 600;
 }
 
-.summary-pick :deep(.custom-select) {
-  display: block;
-  width: 100%;
-  min-width: 0;
-}
-
-.summary-pick :deep(.select-trigger) {
-  min-height: 48px;
-  padding: 12px;
-  border-radius: 12px;
-  font: inherit;
-  font-weight: 600;
-}
-
 .summary-pick .stepper {
   justify-self: start;
 }
 
-.unit-price {
-  font-size: 14px;
-  color: var(--muted);
+.packs {
+  border: 0;
+  padding: 0;
   margin: 0;
+  display: grid;
+  gap: 8px;
 }
 
-.summary-total {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  margin: 0;
-  font-size: 14px;
+.packs legend {
+  font-size: 13px;
   font-weight: 600;
+  margin-bottom: 6px;
 }
 
-.summary-total strong {
-  font-family: var(--display);
-  font-size: 26px;
-  letter-spacing: -0.04em;
-  color: var(--ink);
+.form .packs label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  background: var(--bg);
+  font-size: 15px;
+  font-weight: 400;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.form .packs label.on {
+  border-color: var(--ink);
+}
+
+.packs input {
+  grid-row: 1 / span 2;
+}
+
+.pack-name {
+  text-align: left;
+}
+
+.packs span {
+  font-weight: 600;
+  text-align: right;
+}
+
+.packs em {
+  grid-column: 2 / 4;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--good);
+}
+
+.order-btn {
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.order-btn small {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.75;
 }
 
 .error {

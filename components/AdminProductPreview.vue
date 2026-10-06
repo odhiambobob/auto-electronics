@@ -135,9 +135,10 @@ watch(() => props.liveSrc, (src) => {
                       <em v-if="savingsPercent(product, size)">Save {{ savingsPercent(product, size) }}%</em>
                     </label>
                   </div>
-                  <p v-else class="total-line">{{ formatMoney(product.unitPrice, product.currency) }} per unit</p>
-                  <p class="total-line">Total <strong>{{ formatMoney(total, product.currency) }}</strong></p>
-                  <button type="button" disabled>Place order</button>
+                  <button type="button" disabled>
+                    Place order · {{ formatMoney(total, product.currency) }}
+                    <small v-if="isUnitPricing">{{ formatMoney(product.unitPrice, product.currency) }} per unit</small>
+                  </button>
                 </div>
                 <ul v-if="product.features.length" class="features">
                   <li v-for="feature in product.features" :key="feature">{{ feature }}</li>
@@ -347,13 +348,6 @@ h2 {
   color: var(--good);
 }
 
-.total-line {
-  display: flex;
-  justify-content: space-between;
-  font-weight: 600;
-  color: var(--ink);
-}
-
 .order {
   margin-top: 16px;
   padding: 14px;
@@ -385,5 +379,14 @@ h2 {
   border-radius: 999px;
   background: var(--ink);
   color: var(--bg);
+  display: grid;
+  gap: 2px;
+  font-weight: 600;
+}
+
+.order button small {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.75;
 }
 </style>
