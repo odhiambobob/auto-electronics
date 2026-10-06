@@ -359,38 +359,6 @@ function flushForm() {
         <p class="sold">{{ formatCount(product.soldCount) }} people have bought this</p>
         <p class="blurb">{{ product.shortDescription }}</p>
 
-        <ul v-if="product.features?.length" class="features">
-          <li v-for="feature in product.features" :key="feature">{{ feature }}</li>
-        </ul>
-
-        <!-- Pack selection for tiered pricing -->
-        <fieldset v-if="!isUnitPricing" class="packs">
-          <legend>Package</legend>
-          <label v-for="size in packs" :key="size" :class="{ on: pack === size }">
-            <input v-model="pack" type="radio" :value="size" />
-            <strong class="pack-name">{{ packLabel(size) }}</strong>
-            <span>{{ money(packPrice(product, size)) }}</span>
-            <em v-if="savingsPercent(product, size)">Save {{ savingsPercent(product, size) }}%</em>
-          </label>
-        </fieldset>
-
-        <!-- Quantity selector for unit pricing -->
-        <div v-if="isUnitPricing" class="qty">
-          <span>Quantity</span>
-          <div class="stepper">
-            <button type="button" aria-label="Decrease quantity" @click="bump(-1)">&minus;</button>
-            <strong>{{ quantity }}</strong>
-            <button type="button" aria-label="Increase quantity" @click="bump(1)">+</button>
-          </div>
-        </div>
-        
-        <p v-if="isUnitPricing" class="unit-price">{{ money(product.unitPrice) }} per unit</p>
-
-        <p class="total">
-          Total
-          <strong>{{ money(total) }}</strong>
-        </p>
-
         <form 
           id="order-form" 
           ref="formEl" 
@@ -488,6 +456,7 @@ function flushForm() {
                 <button type="button" aria-label="Increase quantity" @click="bump(1)">+</button>
               </div>
             </div>
+            <p v-if="isUnitPricing" class="unit-price">{{ money(product.unitPrice) }} per unit</p>
             <p class="summary-total">
               <span>Total</span>
               <strong>{{ money(total) }}</strong>
@@ -498,6 +467,10 @@ function flushForm() {
             {{ submitting ? 'Placing order…' : 'Place order' }}
           </button>
         </form>
+
+        <ul v-if="product.features?.length" class="features">
+          <li v-for="feature in product.features" :key="feature">{{ feature }}</li>
+        </ul>
       </div>
     </div>
 
@@ -606,7 +579,7 @@ h1 {
 .features {
   list-style: none;
   padding: 0;
-  margin: 0 0 22px;
+  margin: 24px 0 0;
   display: grid;
   gap: 6px;
 }
@@ -628,74 +601,15 @@ h1 {
   top: 0.55em;
 }
 
-.packs {
-  border: 0;
-  padding: 0;
-  margin: 0 0 18px;
-  display: grid;
-  gap: 8px;
-}
 
-.packs legend {
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
 
-.packs label {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 8px 12px;
-  align-items: center;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  cursor: pointer;
-  background: var(--bg-2);
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease;
-}
 
-.packs label.on {
-  border-color: var(--ink);
-  background: var(--chip);
-}
 
-.packs input {
-  grid-row: 1 / span 2;
-}
 
-.pack-name {
-  text-align: left;
-}
 
-.packs span {
-  font-weight: 600;
-  text-align: right;
-}
 
-.packs em {
-  grid-column: 2 / 4;
-  font-style: normal;
-  font-size: 12px;
-  color: var(--good);
-}
 
-.qty {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
 
-.unit-price {
-  font-size: 14px;
-  color: var(--muted);
-  margin: 0 0 12px;
-}
 
 .stepper {
   display: flex;
@@ -715,18 +629,7 @@ h1 {
   cursor: pointer;
 }
 
-.total {
-  display: flex;
-  justify-content: space-between;
-  font-size: 18px;
-  margin: 0 0 24px;
-}
 
-.total strong {
-  font-family: var(--display);
-  font-size: 28px;
-  letter-spacing: -0.04em;
-}
 
 .form {
   display: grid;
@@ -791,6 +694,12 @@ h1 {
 
 .summary-pick .stepper {
   justify-self: start;
+}
+
+.unit-price {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
 }
 
 .summary-total {
@@ -873,10 +782,6 @@ h1 {
     line-height: 1.08;
   }
 
-  .packs label {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    padding: 12px;
-  }
 
   .form {
     padding: 16px;

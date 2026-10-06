@@ -122,26 +122,26 @@ watch(() => props.liveSrc, (src) => {
                 <p class="cat">{{ product.category }}</p>
                 <h2>{{ product.productName }}</h2>
                 <p class="blurb">{{ product.shortDescription }}</p>
-                <ul v-if="product.features.length" class="features">
-                  <li v-for="feature in product.features" :key="feature">{{ feature }}</li>
-                </ul>
-                <div v-if="!isUnitPricing" class="packs">
-                  <label v-for="size in [1, 2, 3] as PackSize[]" :key="size" :class="{ on: pack === size }">
-                    <input v-model="pack" type="radio" :value="size" />
-                    <strong>{{ packLabel(size) }}</strong>
-                    <span>{{ formatMoney(packPrice(product, size), product.currency) }}</span>
-                    <em v-if="savingsPercent(product, size)">Save {{ savingsPercent(product, size) }}%</em>
-                  </label>
-                </div>
-                <p v-else class="total-line">{{ formatMoney(product.unitPrice, product.currency) }} per unit</p>
-                <p class="total-line">Total <strong>{{ formatMoney(total, product.currency) }}</strong></p>
                 <div class="order">
                   <h3>Place order</h3>
                   <span />
                   <span />
                   <span class="tall" />
+                  <div v-if="!isUnitPricing" class="packs">
+                    <label v-for="size in [1, 2, 3] as PackSize[]" :key="size" :class="{ on: pack === size }">
+                      <input v-model="pack" type="radio" :value="size" />
+                      <strong>{{ packLabel(size) }}</strong>
+                      <span>{{ formatMoney(packPrice(product, size), product.currency) }}</span>
+                      <em v-if="savingsPercent(product, size)">Save {{ savingsPercent(product, size) }}%</em>
+                    </label>
+                  </div>
+                  <p v-else class="total-line">{{ formatMoney(product.unitPrice, product.currency) }} per unit</p>
+                  <p class="total-line">Total <strong>{{ formatMoney(total, product.currency) }}</strong></p>
                   <button type="button" disabled>Place order</button>
                 </div>
+                <ul v-if="product.features.length" class="features">
+                  <li v-for="feature in product.features" :key="feature">{{ feature }}</li>
+                </ul>
               </div>
             </div>
           </div>
